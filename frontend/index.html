@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>IBM Track — Problem Solver</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="IBM Track home"><span class="brand-mark">i</span><span>IBM <strong>TRACK</strong></span></a>
+    <div class="service-status"><span class="status-dot" id="status-dot"></span><span id="status-text">Connecting to backend…</span></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <span class="eyebrow">IDEAS INTO ACTION</span>
+      <h1>What problem are<br class="desktop-break"> you working on?</h1>
+      <p>Describe a challenge and get a clear starting point for solving it.</p>
+    </section>
+
+    <section class="workspace" aria-label="Problem recommendation form">
+      <form id="recommend-form">
+        <label for="problem">Your problem</label>
+        <textarea id="problem" name="problem" rows="5" maxlength="2000" placeholder="For example: Students have trouble finding affordable, healthy meals near campus…" required></textarea>
+        <div class="form-footer"><span id="char-count">0 / 2000</span><button id="submit-button" type="submit"><span>Get recommendations</span><span aria-hidden="true">→</span></button></div>
+      </form>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="result" class="result" aria-live="polite" hidden>
+        <div class="result-heading"><span class="result-icon">✓</span><div><h2>Your problem is ready</h2><p id="result-problem"></p></div></div>
+        <div class="empty-state"><span class="sparkle" aria-hidden="true">✳</span><div><strong>Recommendations are coming soon</strong><p>The recommendation system is not connected yet. Your backend received the problem successfully.</p></div></div>
+      </section>
+    </section>
+    <p class="privacy-note">Your description is sent to the local development backend.</p>
+  </main>
+
+  <footer><span>IBM TRACK</span><span>Hackathon project</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
