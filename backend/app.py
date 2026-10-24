@@ -1,28 +1,46 @@
 import json
 import os
 import re
-from datetime import date, datetime, timezone
+import secrets
+import hashlib
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from pathlib import Path
 
 from flask import Flask, g, jsonify, request, send_from_directory
+from werkzeug.security import check_password_hash, generate_password_hash
 
 try:
     from flask_cors import CORS
 except ImportError:  # Keeps local API startup working before requirements are installed.
     def CORS(flask_app, supports_credentials=False, origins=()):
-        allowed_origins = set(origins)
+        allowed_origins = tuple(origins)
+
+        def is_allowed(origin):
+            if origin in allowed_origins:
+                return True
+            return bool(origin and re.fullmatch(r"https?://(localhost|127\.0\.0\.1)(:\d+)?", origin))
 
         @flask_app.before_request
         def handle_local_cors_preflight():
             if request.method == "OPTIONS":
-                return flask_app.response_class("", status=204)
+                response = flask_app.response_class("", status=204)
+                origin = request.headers.get("Origin")
+                if is_allowed(origin):
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+                        "Access-Control-Request-Headers", "Content-Type")
+                    if supports_credentials:
+                        response.headers["Access-Control-Allow-Credentials"] = "true"
+                    response.headers.add("Vary", "Origin")
+                return response
             return None
 
         @flask_app.after_request
         def add_local_cors_headers(response):
             origin = request.headers.get("Origin")
-            if origin in allowed_origins:
+            if is_allowed(origin):
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
                 response.headers["Access-Control-Allow-Headers"] = request.headers.get(
@@ -39,9 +57,17 @@ except ImportError:  # AI parsing stays unavailable until its dependency is inst
     ModelInference = None
 
 try:
-    from supabase import create_client
-except ImportError:  # Keeps the demo runnable before dependencies are installed.
-    create_client = None
+    import pymysql
+    from pymysql.cursors import DictCursor
+except ImportError:  # Database features become available after installing requirements.
+    pymysql = None
+    DictCursor = None
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 app = Flask(__name__, static_folder=None)
@@ -66,17 +92,84 @@ cors_origins = os.getenv("FRONTEND_ORIGINS") or os.getenv(
     "http://127.0.0.1:5500,http://localhost:5500,"
     "http://127.0.0.1:8000,http://localhost:8000")
 CORS(app, supports_credentials=True,
-     origins=[origin.strip() for origin in cors_origins.split(",") if origin.strip()])
+     origins=[origin.strip() for origin in cors_origins.split(",") if origin.strip()] +
+     [re.compile(r"https?://(localhost|127\.0\.0\.1)(:\d+)?$")])
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if create_client and SUPABASE_URL and SUPABASE_KEY else None
+MYSQL_CONFIG = {
+    "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", "root"),
+    "password": os.getenv("MYSQL_PASSWORD", ""),
+    "database": os.getenv("MYSQL_DATABASE", "echopantry"),
+    "charset": "utf8mb4",
+    "cursorclass": DictCursor,
+    "autocommit": True,
+    "connect_timeout": 3,
+}
+MYSQL_CONFIGURED = bool(pymysql and MYSQL_CONFIG["database"] and MYSQL_CONFIG["user"])
+MYSQL_READY = False
+MYSQL_ERROR = None
 
 
-def create_auth_client():
-    key = SUPABASE_ANON_KEY or SUPABASE_KEY
-    return create_client(SUPABASE_URL, key) if create_client and SUPABASE_URL and key else None
+def db_connection():
+    if not MYSQL_CONFIGURED:
+        raise RuntimeError("Install PyMySQL and configure MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE.")
+    return pymysql.connect(**MYSQL_CONFIG)
+
+
+def initialize_database():
+    global MYSQL_READY, MYSQL_ERROR
+    if not MYSQL_CONFIGURED:
+        MYSQL_ERROR = "Install backend requirements to enable the MySQL driver."
+        return
+    try:
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("""CREATE TABLE IF NOT EXISTS user_profiles (
+                id CHAR(36) PRIMARY KEY, email VARCHAR(255) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL, display_name VARCHAR(60) NOT NULL,
+                created_at DATETIME NOT NULL, last_login_at DATETIME NULL, deleted_at DATETIME NULL,
+                average_rating DECIMAL(3,2) NOT NULL DEFAULT 0,
+                completed_trades INT NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS auth_sessions (
+                token_hash CHAR(64) PRIMARY KEY, user_id CHAR(36) NOT NULL,
+                expires_at DATETIME NOT NULL, INDEX(user_id),
+                CONSTRAINT fk_sessions_user FOREIGN KEY(user_id) REFERENCES user_profiles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS app_records (
+                record_type VARCHAR(40) NOT NULL, id VARCHAR(80) NOT NULL,
+                row_data JSON NOT NULL, PRIMARY KEY(record_type, id),
+                INDEX(record_type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""")
+        MYSQL_READY = True
+        MYSQL_ERROR = None
+    except Exception as error:
+        MYSQL_ERROR = str(error)
+        print(f"MySQL is not ready: {MYSQL_ERROR}")
+
+
+initialize_database()
+
+
+def mysql_unavailable_message():
+    if not MYSQL_CONFIGURED:
+        return "Install the backend requirements to enable MySQL connectivity."
+    error = (MYSQL_ERROR or "").lower()
+    if "access denied" in error:
+        return "MySQL rejected the configured username or password. Set MYSQL_USER and MYSQL_PASSWORD in backend/.env, then restart Flask."
+    if "unknown database" in error:
+        return "The EchoPantry database is missing. Run backend/mysql_schema.sql with a MySQL administrator account."
+    if "can't connect" in error or "connection refused" in error or "timed out" in error:
+        return "Cannot reach MySQL at the configured host and port. Check MYSQL_HOST and MYSQL_PORT and confirm the MySQL service is running."
+    return "MySQL is not connected. Check the MYSQL_* settings in backend/.env and restart Flask."
+
+
+def db_datetime(value):
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+
+
+def token_digest(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 @app.before_request
@@ -91,21 +184,21 @@ def authenticate_api_request():
     if public_listing and not token:
         g.user = None
         return None
-    if not supabase:
-        return jsonify({"error": "Account services require Supabase configuration."}), 503
+    if not MYSQL_READY:
+        return jsonify({"error": "MySQL is not connected. Start MySQL and configure the MYSQL_* settings."}), 503
     if not token:
         return jsonify({"error": "Sign in to continue."}), 401
     try:
-        auth_user = create_auth_client().auth.get_user(token).user
-        if not auth_user:
-            raise ValueError("Invalid access token")
-        profiles = supabase.table("user_profiles").select("*").eq("id", str(auth_user.id)).limit(1).execute().data or []
-        if not profiles:
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("""SELECT p.id,p.email,p.display_name,p.deleted_at,s.expires_at
+                FROM auth_sessions s JOIN user_profiles p ON p.id=s.user_id
+                WHERE s.token_hash=%s LIMIT 1""", (token_digest(token),))
+            profile = cursor.fetchone()
+        if not profile or db_datetime(profile["expires_at"]) <= now_utc():
             return jsonify({"error": "Account profile not found."}), 401
-        profile = profiles[0]
         if profile.get("deleted_at"):
             return jsonify({"error": "This account has been deleted."}), 403
-        g.user = {"id": str(auth_user.id), "email": profile.get("email", auth_user.email),
+        g.user = {"id": str(profile["id"]), "email": profile["email"],
                   "name": profile.get("display_name") or "Community member"}
     except Exception:
         return jsonify({"error": "Your session is invalid or expired. Please sign in again."}), 401
@@ -158,28 +251,36 @@ def active_request(food_request):
 
 
 def save_row(table, row):
-    if supabase:
-        supabase.table(table).upsert(row).execute()
+    if MYSQL_READY:
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("""INSERT INTO app_records(record_type,id,row_data) VALUES(%s,%s,%s)
+                ON DUPLICATE KEY UPDATE row_data=VALUES(row_data)""",
+                (table, str(row["id"]), json.dumps(row, default=lambda value: value.isoformat() if hasattr(value, "isoformat") else str(value)))
+            )
 
 
 def load_rows(table):
-    if not supabase:
+    if not MYSQL_READY:
         return []
-    return supabase.table(table).select("*").execute().data or []
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT row_data FROM app_records WHERE record_type=%s", (table,))
+        return [json.loads(row["row_data"]) if isinstance(row["row_data"], str) else row["row_data"] for row in cursor.fetchall()]
 
 
 def account_is_active(user_id):
-    if not supabase:
+    if not MYSQL_READY:
         return True
     if not user_id:
         return False
-    profile = supabase.table("user_profiles").select("deleted_at").eq("id", user_id).limit(1).execute().data or []
-    return bool(profile) and not profile[0].get("deleted_at")
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT deleted_at FROM user_profiles WHERE id=%s LIMIT 1", (user_id,))
+        profile = cursor.fetchone()
+    return bool(profile) and not profile.get("deleted_at")
 
 
 def initialize_store():
     global listings, offers, food_requests, notifications, ratings, reports, user_blocks
-    if supabase:
+    if MYSQL_READY:
         listings = load_rows("listings")
         offers = load_rows("trade_offers")
         food_requests = load_rows("food_requests")
@@ -261,61 +362,60 @@ initialize_store()
 
 @app.get("/api/health")
 def health():
-    return jsonify({"status": "ok", "backend": "Flask", "storage": "supabase" if supabase else "memory",
-                    "authentication": "supabase-auth" if supabase else "unconfigured"})
+    return jsonify({"status": "ok", "backend": "Flask", "storage": "mysql" if MYSQL_READY else "memory",
+                    "authentication": "mysql-password" if MYSQL_READY else "unconfigured",
+                    "database_message": None if MYSQL_READY else mysql_unavailable_message()})
 
 
 @app.post("/api/auth/signup")
 def auth_signup():
-    if not supabase:
-        return jsonify({"error": "Set up Supabase to create a secure account."}), 503
+    if not MYSQL_READY:
+        return jsonify({"error": mysql_unavailable_message()}), 503
     data = request.get_json(silent=True) or {}
     email, password = str(data.get("email", "")).strip().lower(), str(data.get("password", ""))
     name = str(data.get("display_name", "")).strip()[:60]
     if not email or "@" not in email or len(password) < 8 or not name:
         return jsonify({"error": "Enter your name, a valid email, and a password with at least 8 characters."}), 400
     try:
-        existing = supabase.table("user_profiles").select("id,deleted_at").eq("email", email).limit(1).execute().data or []
-        if existing:
-            return jsonify({"error": "An account already exists for that email. Sign in instead."}), 409
-        result = create_auth_client().auth.sign_up({"email": email, "password": password,
-            "options": {"data": {"display_name": name}}})
-        auth_user = result.user
-        if not auth_user:
-            return jsonify({"error": "Supabase did not create the account."}), 400
-        supabase.table("user_profiles").upsert({"id": str(auth_user.id), "auth_user_id": str(auth_user.id), "email": email,
-            "display_name": name, "deleted_at": None}).execute()
-        session = result.session
-        response = jsonify({"user": {"id": str(auth_user.id), "email": email, "display_name": name},
-            "email_confirmation_required": session is None})
-        if session:
-            response.set_cookie("echo_access_token", session.access_token, httponly=True,
-                secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="Lax",
-                max_age=session.expires_in)
+        user_id, token = str(uuid4()), secrets.token_urlsafe(48)
+        expires = now_utc() + timedelta(days=14)
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("INSERT INTO user_profiles(id,email,password_hash,display_name,created_at) VALUES(%s,%s,%s,%s,%s)",
+                (user_id, email, generate_password_hash(password), name, now_utc().replace(tzinfo=None)))
+            cursor.execute("INSERT INTO auth_sessions(token_hash,user_id,expires_at) VALUES(%s,%s,%s)",
+                (token_digest(token), user_id, expires.replace(tzinfo=None)))
+        response = jsonify({"user": {"id": user_id, "email": email, "display_name": name}})
+        response.set_cookie("echo_access_token", token, httponly=True,
+            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="Lax", max_age=1209600)
         return response, 201
     except Exception as error:
-        return jsonify({"error": str(error)}), 400
+        if "Duplicate entry" in str(error):
+            return jsonify({"error": "An account already exists for that email. Sign in instead."}), 409
+        return jsonify({"error": "Could not create the account. Check the MySQL connection and try again."}), 400
 
 
 @app.post("/api/auth/login")
 def auth_login():
-    if not supabase:
-        return jsonify({"error": "Set up Supabase to sign in."}), 503
+    if not MYSQL_READY:
+        return jsonify({"error": mysql_unavailable_message()}), 503
     data = request.get_json(silent=True) or {}
     try:
-        result = create_auth_client().auth.sign_in_with_password({"email": str(data.get("email", "")).strip().lower(),
-                                                       "password": str(data.get("password", ""))})
-        auth_user, session = result.user, result.session
-        profiles = supabase.table("user_profiles").select("*").eq("id", str(auth_user.id)).limit(1).execute().data or []
-        if not profiles or profiles[0].get("deleted_at"):
+        email = str(data.get("email", "")).strip().lower()
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM user_profiles WHERE email=%s LIMIT 1", (email,))
+            profile = cursor.fetchone()
+        if not profile or profile.get("deleted_at") or not check_password_hash(profile["password_hash"], str(data.get("password", ""))):
             return jsonify({"error": "This account is deleted or unavailable."}), 403
-        profile = profiles[0]
-        supabase.table("user_profiles").update({"last_login_at": now_utc().isoformat()}).eq("id", str(auth_user.id)).execute()
-        response = jsonify({"user": {"id": str(auth_user.id), "email": profile.get("email", auth_user.email),
+        token = secrets.token_urlsafe(48)
+        expires = now_utc() + timedelta(days=14)
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("UPDATE user_profiles SET last_login_at=%s WHERE id=%s", (now_utc().replace(tzinfo=None), profile["id"]))
+            cursor.execute("INSERT INTO auth_sessions(token_hash,user_id,expires_at) VALUES(%s,%s,%s)",
+                (token_digest(token), profile["id"], expires.replace(tzinfo=None)))
+        response = jsonify({"user": {"id": str(profile["id"]), "email": profile["email"],
             "display_name": profile.get("display_name") or "Community member"}})
-        response.set_cookie("echo_access_token", session.access_token, httponly=True,
-            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="Lax",
-            max_age=session.expires_in)
+        response.set_cookie("echo_access_token", token, httponly=True,
+            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="Lax", max_age=1209600)
         return response, 200
     except Exception:
         return jsonify({"error": "Email or password is incorrect."}), 401
@@ -328,6 +428,10 @@ def auth_me():
 
 @app.post("/api/auth/logout")
 def auth_logout():
+    token = request.cookies.get("echo_access_token")
+    if token and MYSQL_READY:
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("DELETE FROM auth_sessions WHERE token_hash=%s", (token_digest(token),))
     response = jsonify({"status": "signed_out"})
     response.delete_cookie("echo_access_token", httponly=True, samesite="Lax",
         secure=os.getenv("COOKIE_SECURE", "false").lower() == "true")
@@ -336,7 +440,9 @@ def auth_logout():
 
 @app.delete("/api/auth/account")
 def soft_delete_account():
-    supabase.table("user_profiles").update({"deleted_at": now_utc().isoformat()}).eq("id", g.user["id"]).execute()
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute("UPDATE user_profiles SET deleted_at=%s WHERE id=%s", (now_utc().replace(tzinfo=None), g.user["id"]))
+        cursor.execute("DELETE FROM auth_sessions WHERE user_id=%s", (g.user["id"],))
     response = jsonify({"status": "deleted", "message": "Account deactivated. Trade and rating history is retained."})
     response.delete_cookie("echo_access_token", httponly=True, samesite="Lax",
         secure=os.getenv("COOKIE_SECURE", "false").lower() == "true")
@@ -827,14 +933,15 @@ def create_rating():
            "created_at": now_utc().isoformat()}
     ratings.append(row)
     save_row("ratings", row)
-    if supabase:
+    if MYSQL_READY:
         target_listing = next((listing for listing in listings if listing.get("user_id") == to_id), None)
         target_name = target_listing["name"] if target_listing else (giveaway_request.get("requester_name") if giveaway_request and giveaway_request.get("requester_id") == to_id else "Community member")
         received = [rating["stars"] for rating in ratings if rating.get("to_user_id") == to_id]
         completed_count = sum(1 for trade in offers if trade.get("status") == "completed" and any(participant.get("user_id") == to_id for participant in trade.get("participants", [])))
         completed_count += sum(1 for pickup in food_requests if pickup.get("status") == "completed" and to_id in (pickup.get("requester_id"), pickup.get("owner_id")))
-        supabase.table("user_profiles").upsert({"id": to_id, "display_name": target_name,
-            "average_rating": round(sum(received) / len(received), 2), "completed_trades": completed_count}).execute()
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("UPDATE user_profiles SET average_rating=%s,completed_trades=%s WHERE id=%s",
+                (round(sum(received) / len(received), 2) if received else 0, completed_count, to_id))
     return jsonify({"rating": row}), 201
 
 
@@ -861,8 +968,7 @@ def block_user(user_id):
            "created_at": now_utc().isoformat()}
     if not any(block.get("user_id") == owner_id and block.get("blocked_user_id") == user_id for block in user_blocks):
         user_blocks.append(row)
-    if supabase:
-        supabase.table("user_blocks").upsert(row, on_conflict="user_id,blocked_user_id").execute()
+    save_row("user_blocks", row)
     return jsonify({"status": "blocked"}), 201
 
 

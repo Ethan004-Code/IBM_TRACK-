@@ -14,22 +14,27 @@ python app.py
 
 Flask serves both the frontend and API from the same origin. Open <http://127.0.0.1:5000>. This avoids separate frontend/backend host and CORS mismatches. If you choose to serve `frontend/` separately during development, the browser targets Flask on port 5000; set `window.ECHOPANTRY_API_URL` before `app.js` loads for a different API origin and configure `FRONTEND_ORIGINS` accordingly.
 
-## Supabase setup
+## MySQL setup
 
-Create a Supabase project, run [`backend/supabase_schema.sql`](backend/supabase_schema.sql) in its SQL editor, and set these environment variables before starting Flask:
+Install and start MySQL, then create the EchoPantry database and tables:
 
 ```bash
-export SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-export SUPABASE_ANON_KEY="YOUR_PUBLIC_ANON_KEY"
-export SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVER_SIDE_KEY"
-export FRONTEND_ORIGINS="http://127.0.0.1:8000,http://localhost:8000"
+mysql -u root -p < backend/mysql_schema.sql
 ```
 
-Keep the service key private; never place it in frontend files. Flask uses the anon key for Supabase Auth and the service key for server-side database access. Protected API requests are validated against Supabase Auth and use an HttpOnly session cookie. For HTTPS deployments, set `COOKIE_SECURE=true`; if the frontend and API use different origins, set `FRONTEND_ORIGINS` to the deployed frontend origin. Configure Supabase email confirmation URLs for the app if email verification is enabled.
+Enter the credentials for your local MySQL account in `backend/.env`. The local file is ignored by git and loaded automatically by Flask. Set `MYSQL_PASSWORD` to your MySQL root password, or change `MYSQL_USER` and `MYSQL_PASSWORD` to a MySQL user that can create the database and tables.
 
-Signup and login use Supabase Auth, which stores password credentials. EchoPantry never stores password hashes. Account deletion sets `user_profiles.deleted_at`; it does not delete the Supabase identity or historical listings, offers, and ratings. Deleted users cannot log in or create new activity, and their active listings are hidden. Run the schema script again when upgrading an existing prototype database so it applies the soft-delete and authentication columns.
+```bash
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_local_mysql_password
+MYSQL_DATABASE=echopantry
+```
 
-Without Supabase credentials, the public sample listings remain viewable, but account creation and protected actions are disabled. The memory fallback resets whenever Flask restarts.
+After configuring the credentials, create the database with `mysql -u root -p < backend/mysql_schema.sql`, install the backend requirements, and restart Flask.
+
+The API stores profiles, hashed passwords, and hashed session tokens in MySQL. Account deletion sets `user_profiles.deleted_at` and revokes active sessions, preserving trade history and ratings. API records are stored in MySQL's `app_records` JSON column; types include listings, requests, offers, notifications, ratings, impact records, reports, and blocks. The health endpoint reports whether MySQL connected. Without a database connection, public sample listings still run in memory, but account creation and protected actions are disabled. Never commit database passwords. For HTTPS deployments set `COOKIE_SECURE=true`.
 
 ## Prototype behavior and limits
 
@@ -37,7 +42,7 @@ Without Supabase credentials, the public sample listings remain viewable, but ac
 - Giveaway requests and food requests generate in-app notifications. The browser checks for notifications every 15 seconds.
 - Both exchange participants must accept; both must confirm pickup before ratings are enabled. Reports and blocks are available on listing cards.
 - Estimated impact is calculated from completed sample trades and is labeled as an estimate.
-- The schema enables row-level security without browser-facing table policies; the Flask API accesses data with its server-only key after checking the Supabase Auth session. Review deployment secrets, email verification settings, and rate limits before public launch. The prototype is not affiliated with any official community or campus service.
+- The Flask API accesses MySQL using server-side connection settings. Use a limited database user and review deployment secrets and rate limits before public launch. The prototype is not affiliated with any official community or campus service.
 
 ## Natural-language request parsing
 
