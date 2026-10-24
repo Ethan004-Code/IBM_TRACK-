@@ -67,6 +67,7 @@ export default defineConfig({
       input: {
         main: path.resolve(import.meta.dirname, 'index.html'),
         new: path.resolve(import.meta.dirname, 'new.html'),
+        legacy: path.resolve(import.meta.dirname, 'legacy.html'),
       },
     },
   },
