@@ -206,7 +206,7 @@ function viewCompose() {
       <h1 class="large-title sm">What do you have to share?</h1>
       <p class="vh-sub">Bob is RePlate's AI helper. It drafts your listing and checks it before it goes live.</p>
       <p class="vh-sub">Add a photo and describe it. Bob drafts the listing for you to check before anything goes live.</p></header>
-    ${!S.user ? `<div class="note">${icon("shield", 22)}<p>You'll need to <button type="button" class="link" data-action="open-signin" style="min-height:0">sign in</button> to upload a photo and publish.</p></div>` : ""}
+    ${!S.user ? `<div class="note">${icon("shield", 22)}<p>You'll need to <button type="button" class="link" data-action="open-signin">sign in</button> to upload a photo and publish.</p></div>` : ""}
     <div class="step-label"><span class="step-num">1</span>Add a photo of the food</div>
     <div id="photo-slot"></div>
     <div class="step-label"><span class="step-num">2</span><label for="share-text">Describe it in your own words</label></div>
@@ -233,7 +233,7 @@ function photoSlotHtml(compact) {
     <div class="photo-actions">${!p.id && p.file && !S.photoBusy ? `<button type="button" class="btn btn-primary btn-sm" data-action="retry-photo">${S.user ? "Retry" : "Sign in"}</button>` : ""}
     <button type="button" class="btn btn-secondary btn-sm" data-action="pick-photo">Replace</button></div></div>
     ${S.photoStatus ? `<p class="foot" style="margin:0 4px">${esc(S.photoStatus)}</p>` : ""}
-    ${p ? `<button type="button" class="link danger" data-action="remove-photo" style="align-self:flex-start;min-height:36px;font-size:14px">Remove photo</button>` : ""}`;
+    ${p ? `<button type="button" class="link danger" data-action="remove-photo" style="align-self:flex-start;font-size:14px">Remove photo</button>` : ""}`;
 }
 function renderPhotoSlot() { const el = $("#photo-slot"); if (el) el.innerHTML = photoSlotHtml(S.share.step === "review"); }
 
@@ -243,12 +243,12 @@ function conditionOptions(sel) {
 }
 const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
 function spotField(id, value = "", attrs = "") {
-  return `<div class="pickup-field"><div class="row"><label for="${id}">Pickup spot</label><input id="${id}" type="text" maxlength="${SPOT_MAX}" placeholder="${SPOT_PLACEHOLDER}" value="${esc(value)}" aria-describedby="${id}-note ${id}-count" data-spot-counter="${id}-count" ${attrs}></div><div class="pickup-help"><span id="${id}-note">${SPOT_NOTE}</span><span id="${id}-count" role="status">${String(value).length}/${SPOT_MAX}</span></div></div>`;
+  return `<div class="pickup-field"><div class="row"><label for="${id}">Pickup spot</label><input class="pickup-input" id="${id}" type="text" maxlength="${SPOT_MAX}" placeholder="${SPOT_PLACEHOLDER}" value="${esc(value)}" aria-describedby="${id}-note ${id}-count" data-spot-counter="${id}-count" ${attrs}></div><div class="pickup-help"><span id="${id}-note">${SPOT_NOTE}</span><span id="${id}-count" role="status">${String(value).length}/${SPOT_MAX}</span></div></div>`;
 }
 function viewReview() {
   const d = S.draft, sh = S.share, pl = printedLimits(), lim = pickupLimits();
   const items = d.items.map((it, i) => `<div class="item-ed">
-      <div class="item-top"><label class="sr-only" for="it-${i}-name">Food ${i + 1}</label><input id="it-${i}-name" data-bind="draft.items.${i}.name" value="${esc(it.name)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off">
+      <div class="item-top"><label class="text-entry" for="it-${i}-name"><span>Item</span><input id="it-${i}-name" data-bind="draft.items.${i}.name" value="${esc(it.name)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></label>
       ${d.items.length > 1 ? `<button type="button" class="icon-btn" data-action="remove-item" data-idx="${i}" aria-label="Remove ${esc(it.name || "item " + (i + 1))}">${icon("trash", 19)}</button>` : ""}</div>
       <div class="item-grid">
         <label class="mini" for="it-${i}-qty"><span>Quantity</span><input id="it-${i}-qty" ${QTY_ATTRS} data-bind="draft.items.${i}.quantity" value="${esc(it.quantity)}"></label>
@@ -263,7 +263,7 @@ function viewReview() {
     </div>`).join("");
   const add = d.items.length < MAX_ITEMS ? `<button type="button" class="row row-btn row-add" data-action="add-item">${icon("plus", 18)}<span class="grow">Add another item (up to 5)</span></button>` : "";
   const how = d.mode === "exchange"
-    ? `<div class="group"><div class="item-ed"><div class="item-top"><label class="sr-only" for="want-name">Food you'd like in return</label><input id="want-name" data-bind="draft.wanted_food" value="${esc(d.wanted_food)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
+    ? `<div class="group"><div class="item-ed"><div class="item-top"><label class="text-entry" for="want-name"><span>What would you like in return?</span><input id="want-name" data-bind="draft.wanted_food" value="${esc(d.wanted_food)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></label></div>
         <div class="item-grid"><label class="mini" for="want-qty"><span>Quantity</span><input id="want-qty" ${QTY_ATTRS} data-bind="draft.wanted_quantity" value="${esc(d.wanted_quantity)}"></label></div></div></div>`
     : `<p class="foot" style="margin:0 4px">Neighbors can ask for it and you choose who gets it. Nothing is promised until you approve.</p>`;
   return `<header class="vh"><div class="vh-row"><button type="button" class="back-btn" data-action="back-compose">${icon("chevL", 22)}Back</button>${accountBtn()}</div>
@@ -281,10 +281,10 @@ function viewReview() {
     <p class="section-label">When and where</p>
     <div class="group">
       ${spotField("f-zone", d.location, 'data-bind="draft.location"')}
-      <div class="row"><label for="f-day">Day</label><input id="f-day" type="date" min="${lim.minDay}" max="${lim.maxDay}" data-bind="draft.day" value="${esc(d.day)}"></div>
-      <div class="row"><label for="f-from">From</label><input id="f-from" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.from" value="${esc(d.from)}"></div>
-      <div class="row"><label for="f-until">Until</label><input id="f-until" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.until" value="${esc(d.until)}"></div>
-      <div class="row"><label for="f-deadline">Available until</label><input id="f-deadline" type="datetime-local" min="${lim.minInput}" max="${lim.maxInput}" data-bind="draft.deadline" value="${esc(d.deadline)}"></div>
+      <div class="row select-row"><label for="f-day">Day</label><input id="f-day" type="date" min="${lim.minDay}" max="${lim.maxDay}" data-bind="draft.day" value="${esc(d.day)}">${icon("chevD", 15, "field-chev")}</div>
+      <div class="row select-row"><label for="f-from">From</label><input id="f-from" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.from" value="${esc(d.from)}">${icon("chevD", 15, "field-chev")}</div>
+      <div class="row select-row"><label for="f-until">Until</label><input id="f-until" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.until" value="${esc(d.until)}">${icon("chevD", 15, "field-chev")}</div>
+      <div class="row select-row"><label for="f-deadline">Available until</label><input id="f-deadline" type="datetime-local" min="${lim.minInput}" max="${lim.maxInput}" data-bind="draft.deadline" value="${esc(d.deadline)}">${icon("chevD", 15, "field-chev")}</div>
     </div>
     <p class="foot">Meet at a public spot. Never share your home address. Pickup must be within the next year, and "Available until" can't be earlier than your pickup end.</p>
     <p class="section-label">Allergens</p>
@@ -298,7 +298,16 @@ function viewReview() {
 }
 
 /* Draft → API payload (same shape and checks as app.js) */
+function syncPickupDraftFromControls() {
+  for (const [selector, key] of [["#f-day", "day"], ["#f-from", "from"], ["#f-until", "until"], ["#f-deadline", "deadline"]]) {
+    const input = $(selector);
+    if (typeof input?.value === "string") S.draft[key] = input.value;
+  }
+}
 function readDraft() {
+  // Native date/time pickers and browser autofill do not always emit input/change.
+  // Reconcile the displayed values before validating so the checklist matches the form.
+  syncPickupDraftFromControls();
   const miss = [], warn = [], d = S.draft, mode = d.mode, now = Date.now();
   const items = d.items.map(it => {
     const category = it.condition === "produce" ? "produce" : (it.condition === "shelf_stable" || it.condition === "opened") ? "shelf_stable" : null;
@@ -356,7 +365,7 @@ function renderReviewPanel() {
   const canCheck = S.user && !d.miss.length && !S.reviewing && !S.publishing;
   el.innerHTML = `${checklist}${status}
     <button type="button" class="btn btn-outline btn-block" data-action="review"${canCheck ? "" : " disabled"}>${S.reviewing ? '<span class="spin" aria-hidden="true"></span>Bob is checking…' : `${icon("sparkle", 18)}${ok ? "Check again with Bob" : "Check with Bob"}`}</button>
-    ${!S.user ? `<p class="foot" style="margin:0"><button type="button" class="link" data-action="open-signin" style="min-height:0">Sign in</button> to check and publish.</p>` : ""}
+    ${!S.user ? `<p class="foot" style="margin:0"><button type="button" class="link" data-action="open-signin">Sign in</button> to check and publish.</p>` : ""}
     <p class="foot" style="margin:0">Bob can make mistakes, and a check isn't a food safety guarantee. Any edit needs a new check.</p>`;
   const canPublish = S.user && !d.miss.length && ok && !S.reviewing && !S.publishing;
   $("#publish-slot").innerHTML = `${S.publishError ? `<div class="alert" role="alert" style="margin-bottom:10px">${icon("alert", 20)}<p>${esc(S.publishError)}</p></div>` : ""}
