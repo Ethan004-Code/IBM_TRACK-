@@ -745,6 +745,7 @@ async function openFallback(id) {
 function fallbackBody() {
   if (S.fallback.browse) return browseBody();
   const { id, fb, err } = S.fallback, matches = fb.matches || [], opts = fb.options || [];
+  const donations = opts.filter(o => o.type === "donation"), compost = opts.filter(o => o.type === "compost");
   const inedible = fb.inedible_confirmed === true || S.myListings.some(l => l.id === id && l.inedible_confirmed === true);
   let html = fb.message ? `<p class="foot" style="margin:0 4px">${esc(fb.message)}</p>` : "";
   html += `<p class="section-label">Another match</p>` + (matches.length ? matches.map((m, i) => `<div class="dest">
@@ -753,11 +754,15 @@ function fallbackBody() {
       ${m.reason ? `<p class="foot" style="margin:0">${esc(m.reason)}</p>` : ""}
       <button type="button" class="btn btn-primary btn-sm" data-action="propose" data-idx="${i}">Propose this swap</button></div>`).join("") : `<p class="foot" style="margin:0 4px">No compatible swap right now. New listings are checked as they come in.</p>`);
   if (fb.can_switch_to_giveaway) html += `<p class="section-label">Give it away instead</p><div class="dest" style="flex-direction:row;align-items:center;gap:12px"><p style="margin:0;flex:1;font-size:14.5px;line-height:1.4">More neighbors can ask for it. You'll review it and Bob checks the change first.</p><button type="button" class="btn btn-outline btn-sm" data-action="fb-giveaway" style="flex:none">Make it free</button></div>`;
-  html += `<p class="section-label">Donate or compost</p><p class="foot" style="margin:0 4px">A researched list, not live acceptance. Confirm the current rules before you go. Nothing is donated automatically.</p>`;
-  const donations = opts.filter(o => o.type !== "compost"), compost = opts.filter(o => o.type === "compost");
+  html += `<p class="section-label">Donation</p><p class="foot" style="margin:0 4px">A researched list, not live acceptance. Confirm the current rules before you go. Nothing is donated automatically.</p>`;
   if (donations.length) html += `<section class="dn-area" aria-labelledby="dn-title"><h3 id="dn-title" class="sr-only">Verified donation spots by drive time</h3>${routeFormHtml()}<div id="dn-results" class="dn-results">${routeResultsHtml()}</div></section>`;
-  html += compost.map(o => destCard(o, inedible, err)).join("");
-  if (!opts.length) html += `<p class="foot" style="margin:0 4px">No verified donation spot is listed for this food or area.</p>`;
+  else html += `<p class="foot" style="margin:0 4px">${inedible
+    ? "Donation is unavailable because this listing is marked as no longer edible."
+    : "No verified donation destination is compatible with these items. Current verified partners accept only eligible unopened, unexpired, shelf-stable food without glass."}</p>`;
+  html += `<p class="section-label">Compost</p>`;
+  html += compost.length ? compost.map(o => destCard(o, inedible, err)).join("") : `<p class="foot" style="margin:0 4px">${inedible
+    ? "No verified compost destination is compatible with these items. The current compost option accepts only fruit and vegetable scraps."
+    : "Compost is available only after you confirm the food is no longer edible. A missed exchange or pickup deadline does not mean food is spoiled."}</p>`;
   if (!inedible) html += `<details class="more"><summary>Is this food no longer edible?${icon("chevD", 16)}</summary>
       <label class="check" for="inedible-check"><input type="checkbox" id="inedible-check"><span>This food is no longer edible. I understand this removes it from offers. A missed pickup alone doesn't mean food is spoiled.</span></label>
       ${err.inedible ? sheetError(err.inedible) : ""}<button type="button" class="btn btn-danger btn-sm" data-action="confirm-inedible" style="margin-top:10px">Confirm it's not edible</button></details>`;
