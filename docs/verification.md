@@ -9,8 +9,9 @@
 - OpenAPI generation, workspace type checks, production frontend build and JavaScript syntax checks pass.
 - The publishing form uses a visible native image input. A frontend state check covers immediate local preview, keeping the selected image after an upload failure, retry, successful upload, preview URL cleanup and removing an image during an in-flight upload without restoring a stale result. A local preview never counts as an uploaded or approved photo.
 - The homepage and desktop navigation expose photo-posting actions that open the image chooser and bring the uploader into view. The uploader comes before the longer listing fields. A frontend state check confirms guest selection/preview without opening sign-in, retaining the selected file when sign-in is requested, and keeping posting blocked after a failed authenticated upload.
-- **Pending:** the user must apply the latest `artifacts/api-server/backend/interview_migration.sql` to the existing Supabase project. The old database schema is intentionally blocked from new writes until this update; existing rows are preserved.
-- The earlier live API results below predate mandatory photo approval. The updated live checker now requires real food-photo fixtures and the latest schema. The signed-in browser photo-upload/review/publish flow has not yet been exercised.
+- The user applied the latest additive SQL update. The connected website now reports healthy Supabase storage with no setup requirements; schema version 3 and both photo/approval tables are available.
+- **17 live photo-posting API checks passed** against the real configured services: authenticated login, required approval, private upload and owner preview, unposted-photo privacy, required-detail checks, actual Bob image approval, no automatic publication after review, changed-detail rejection, approved posting, persisted photo/receipt linkage, public feed and JPEG serving, single-use approval enforcement, saved-photo deletion protection, withdrawal and withdrawn-photo privacy. The temporary account, listing, approval, photo registry entry and App Storage image were removed.
+- The earlier broader API results below predate mandatory photo approval. The signed-in browser photo-upload/review/publish flow has not yet been exercised; frontend state checks cover selection, preview, retry and stale results.
 
 ## Completed
 
