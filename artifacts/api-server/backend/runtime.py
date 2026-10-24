@@ -53,6 +53,10 @@ def install_runtime(app, legacy):
         if request.method not in {"GET", "HEAD"} and origin:
             if urlparse(origin).netloc != request.host:
                 return jsonify(error="Cross-origin writes are not allowed."), 403
+        # The same curated directory/routing service can be browsed without an
+        # account or listing. Never resolve cookies or load private snapshots.
+        if request.endpoint in {"donation_locations", "donation_location_routes"}:
+            return
         if not legacy["supabase"]:
             return jsonify(error="Supabase setup is invalid or incomplete. Update the existing project URL and keys."), 503
         if request.endpoint not in {"auth_login", "auth_logout", "auth_signup"}:

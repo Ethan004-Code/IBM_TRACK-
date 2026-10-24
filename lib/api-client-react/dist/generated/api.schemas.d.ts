@@ -111,6 +111,20 @@ export interface OfferInput {
 export interface DecisionInput {
     accept: boolean;
 }
+export type DonationRouteInputMaxDriveMinutes = typeof DonationRouteInputMaxDriveMinutes[keyof typeof DonationRouteInputMaxDriveMinutes];
+export declare const DonationRouteInputMaxDriveMinutes: {
+    readonly NUMBER_15: 15;
+    readonly NUMBER_30: 30;
+    readonly NUMBER_60: 60;
+};
+export interface DonationRouteInput {
+    /**
+       * @minLength 2
+       * @maxLength 100
+       */
+    area: string;
+    max_drive_minutes: DonationRouteInputMaxDriveMinutes;
+}
 export type OutcomeInputAction = typeof OutcomeInputAction[keyof typeof OutcomeInputAction];
 export declare const OutcomeInputAction: {
     readonly donation: "donation";

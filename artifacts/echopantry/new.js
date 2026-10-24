@@ -196,7 +196,8 @@ function viewDiscover() {
       <div class="discover-filters">
         <div class="seg" role="group" aria-label="Show">${[["", "All"], ["exchange", "Swaps"], ["giveaway", "Free"]].map(([v, l]) => `<button type="button" data-action="filter-mode" data-value="${v}" aria-pressed="${f.mode === v}">${l}</button>`).join("")}</div>
         <div class="pill-row"><button type="button" class="pill" data-action="open-zone">${icon("pin", 16)}<span>${esc(f.zone || "All areas")}</span>${icon("chevD", 12)}</button>
-        <button type="button" class="pill" data-action="open-hours">${icon("clock", 16)}<span>${esc(hoursLabel)}</span>${icon("chevD", 12)}</button></div>
+        <button type="button" class="pill" data-action="open-hours">${icon("clock", 16)}<span>${esc(hoursLabel)}</span>${icon("chevD", 12)}</button>
+        <button type="button" class="pill pill-donate" data-action="open-donation-locations">${icon("pin", 16)}<span>Donation locations</span></button></div>
       </div></header>
     ${body}`;
 }
@@ -709,6 +710,26 @@ function rateBody() {
     <button type="button" class="btn btn-primary btn-block" data-action="save-rating"${s ? "" : " disabled"}>Save rating</button>`;
 }
 
+/* Public donation directory (no listing, no sign-in) */
+async function openDonationLocations() {
+  openSheet("Donation locations", `<div class="skel" style="height:90px"></div><div class="skel dn-map"></div><div class="skel" style="height:150px"></div>`, "San Jose and Silicon Valley food donation spots");
+  const tok = ++fbSeq;
+  try {
+    const res = await api("/donation-locations");
+    if (tok !== fbSeq || !sheetOpen()) return;
+    const options = (res.options || []).filter(o => o && o.id != null && o.type !== "compost");
+    S.fallback = { browse: true, id: null, fb: { options, routing_configured: res.routing_configured, message: res.message || "" }, err: {}, sel: null, routingDown: !res.routing_configured, route: { area: "", max: 30, status: "idle", rows: [], origin: null, error: "", seq: 0 } };
+    renderFallback();
+  } catch (e) { if (tok !== fbSeq || !sheetOpen()) return; setSheetBody(`${sheetError(e.message)}<button type="button" class="btn btn-secondary btn-block" data-action="open-donation-locations">Try again</button>`); }
+}
+function browseBody() {
+  const { fb } = S.fallback, opts = fb.options || [];
+  let html = `<div class="dn-notice"><p><strong>Covers San Jose and Silicon Valley only.</strong> This is a researched directory of food donation organizations, not a check of any specific item.</p><p>Always confirm current acceptance rules and hours on the official link before you go.</p></div>`;
+  if (fb.message) html += `<p class="foot" style="margin:0 4px">${esc(fb.message)}</p>`;
+  if (!opts.length) return html + `<div class="empty"><div class="empty-icon">${icon("pin", 26)}</div><h3>No donation locations listed yet</h3><p>The directory is empty right now. Check back later.</p><button type="button" class="btn btn-secondary btn-sm" data-action="open-donation-locations">Refresh</button></div>`;
+  return html + `<section class="dn-area" aria-labelledby="dn-title"><h3 id="dn-title" class="sr-only">Donation locations by drive time</h3>${routeFormHtml()}<div id="dn-results" class="dn-results">${routeResultsHtml()}</div></section>`;
+}
+
 /* Next steps for a listing (fallback options) */
 async function openFallback(id) {
   const l = findListing(id);
@@ -723,6 +744,7 @@ async function openFallback(id) {
   catch (e) { if (tok !== fbSeq || !sheetOpen()) return; setSheetBody(`${sheetError(e.message)}<button type="button" class="btn btn-secondary btn-block" data-action="open-fallback" data-id="${esc(id)}">Try again</button>`); }
 }
 function fallbackBody() {
+  if (S.fallback.browse) return browseBody();
   const { id, fb, err } = S.fallback, matches = fb.matches || [], opts = fb.options || [];
   const inedible = fb.inedible_confirmed === true || S.myListings.some(l => l.id === id && l.inedible_confirmed === true);
   let html = fb.message ? `<p class="foot" style="margin:0 4px">${esc(fb.message)}</p>` : "";
@@ -748,17 +770,17 @@ let dMap = null, routeSeq = 0, fbSeq = 0;
 const hasPt = o => o && Number.isFinite(o.latitude) && Number.isFinite(o.longitude);
 function destroyDMap() { if (dMap) dMap.destroy(); dMap = null; }
 function destCard(o, inedible, err, pin = 0) {
-  const compostLocked = o.type === "compost" && !inedible, donation = o.type !== "compost";
+  const browse = !!S.fallback?.browse, compostLocked = o.type === "compost" && !inedible, donation = o.type !== "compost";
   const routed = Number.isFinite(o.drive_minutes);
   const where = o.address || o.location;
   return `<div class="dest${donation ? " dest-pickable" : ""}${donation && S.fallback?.sel === String(o.id) ? " selected" : ""}"${donation ? ` data-dest-card="${esc(o.id)}" tabindex="0" aria-label="${esc(o.name)}${routed ? `, ${esc(o.drive_minutes)} minutes by car` : ""}. Press Enter to show on map."` : ""}>
       <div class="dest-top">${pin ? `<span class="dest-pin" aria-hidden="true">${pin}</span>` : ""}<h4>${esc(o.name)}</h4>${routed ? `<div class="dn-route"><strong>${esc(o.drive_minutes)} min</strong><span>${esc(o.drive_miles)} mi by car</span></div>` : ""}</div>
-      <div class="badges"><span class="badge ${o.type === "compost" ? "b-pkg" : "b-ok"}">${o.type === "compost" ? "Compost" : "Donation"}</span>${donation && o.item_rules_status ? `<span class="badge b-soft">${o.item_rules_status === "matched" ? "Verified item match" : "Confirm your item"}</span>` : ""}</div>
+      <div class="badges"><span class="badge ${o.type === "compost" ? "b-pkg" : "b-ok"}">${o.type === "compost" ? "Compost" : "Donation"}</span>${donation && !browse && o.item_rules_status ? `<span class="badge b-soft">${o.item_rules_status === "matched" ? "Verified item match" : "Confirm your item"}</span>` : ""}</div>
       <dl><dt>Where</dt><dd>${esc(where)}</dd><dt>Hours</dt><dd>${esc(String(o.hours || "Not published").replace(/^Published:\s*/i, ""))}</dd><dt>Accepts</dt><dd>${esc((o.accepted_categories || []).map(c => String(c).replaceAll("_", " ")).join(", ") || "See website")}</dd>${o.exclusions?.length ? `<dt>Not</dt><dd>${esc(o.exclusions.join(", "))}</dd>` : ""}${o.checked_at ? `<dt>Checked</dt><dd>${esc(o.checked_at)}</dd>` : ""}</dl>
       ${o.policy ? `<p class="foot" style="margin:0">${esc(o.policy)}</p>` : ""}
       ${o.notice ? `<p class="foot" style="margin:0">${esc(o.notice)}</p>` : ""}
-      ${o.url ? `<a class="link" href="${esc(o.url)}" target="_blank" rel="noopener">Confirm current rules ${icon("ext", 14)}</a>` : ""}
-      ${compostLocked ? `<p class="foot" style="margin:0">Compost is only for food that's no longer edible. Confirm that below first.</p>` : `
+      ${o.url ? `<a class="link" href="${esc(o.url)}" target="_blank" rel="noopener">${browse ? "Official donation instructions" : "Confirm current rules"} ${icon("ext", 14)}</a>` : ""}
+      ${browse ? "" : compostLocked ? `<p class="foot" style="margin:0">Compost is only for food that's no longer edible. Confirm that below first.</p>` : `
       <label class="check" for="fz-${esc(o.id)}"><input type="checkbox" id="fz-${esc(o.id)}" data-feasible="${esc(o.id)}"><span>${o.type === "compost" ? "These are accepted fruit and vegetable scraps, and I confirmed I can get there during its published hours." : "These are unopened packages with no glass, and I confirmed I can get there during its published hours."}</span></label>
       <label class="check" for="dp-${esc(o.id)}"><input type="checkbox" id="dp-${esc(o.id)}" data-drop="${esc(o.id)}"><span>I actually dropped this food off here.</span></label>
       ${err[o.id] ? sheetError(err[o.id]) : ""}
@@ -787,11 +809,11 @@ function routeResultsHtml() {
   else if (r.status === "error") { status = `<p class="route-status" role="status">Showing the full verified list without drive times.</p>`; top = `${sheetError(r.error)}${r.area.trim() ? `<button type="button" class="btn btn-secondary btn-sm route-retry" data-action="route-retry">Try the search again</button>` : ""}`; }
   else status = `<p class="route-status muted" role="status">Enter a city or ZIP to sort these by live drive time.</p>`;
   if (r.status === "loading") return `${status}<div class="dn-map-wrap"><div class="skel dn-map"></div></div><div class="skel" style="height:150px"></div><div class="skel" style="height:150px"></div>`;
-  if (r.status === "empty") return `${status}<div class="route-empty"><strong>No verified spot within ${esc(r.searchedMax)} minutes by car.</strong><p>Try a longer drive limit, another area, a swap, or giving it away. We won't suggest a drop-off that isn't verified.</p></div>
+  if (r.status === "empty") return `${status}<div class="route-empty"><strong>No verified spot within ${esc(r.searchedMax)} minutes by car.</strong><p>${f.browse ? "Try a longer drive limit or another area." : "Try a longer drive limit, another area, a swap, or giving it away. We won't suggest a drop-off that isn't verified."}</p></div>
     <details class="more"><summary>See the full verified list without drive times${icon("chevD", 16)}</summary><div class="dn-cards">${directory.map(o => destCard(o, inedible, f.err)).join("")}</div></details>`;
   const rows = routeRows(), pins = new Map(); rows.filter(hasPt).forEach((o, i) => pins.set(String(o.id), i + 1));
   const showMap = pins.size > 0 || (r.status === "ok" && hasPt(r.origin));
-  return `${status}${top}${showMap ? `<div class="dn-map-wrap"><div id="dn-map" class="dn-map" role="region" aria-label="Map of verified donation spots. Numbered pins match the cards below."></div><p id="dn-map-status" class="map-note">Map data &copy; OpenStreetMap contributors${r.status === "ok" ? " · Drive times by openrouteservice" : ""}. The map shows places, not acceptance.</p></div>` : ""}
+  return `${status}${top}${showMap ? `<div class="dn-map-wrap"><div id="dn-map" class="dn-map" role="region" aria-label="Map of ${f.browse ? "donation locations" : "verified donation spots"}. Numbered pins match the cards below."></div><p id="dn-map-status" class="map-note">Map data &copy; OpenStreetMap contributors${r.status === "ok" ? " · Drive times by openrouteservice" : ""}. The map shows places, not acceptance.</p></div>` : ""}
     <div class="dn-cards">${rows.map(o => destCard(o, inedible, f.err, pins.get(String(o.id)) || 0)).join("")}</div>`;
 }
 function mountDMap() {
@@ -830,9 +852,9 @@ async function runRouteSearch() {
   if (!area) { Object.assign(r, { status: "error", error: "Enter a city or ZIP code first.", rows: [], origin: null }); renderRouteResults(); $("#route-area")?.focus(); return; }
   const seq = ++routeSeq; r.seq = seq;
   Object.assign(r, { status: "loading", rows: [], origin: null, error: "" }); f.sel = null; renderRouteResults();
-  const stale = () => S.fallback !== f || r.seq !== seq || !S.user || !sheetOpen() || r.area.trim() !== area || r.max !== max;
+  const stale = () => S.fallback !== f || r.seq !== seq || (!f.browse && !S.user) || !sheetOpen() || r.area.trim() !== area || r.max !== max;
   try {
-    const res = await post(`/listings/${encodeURIComponent(f.id)}/donation-routes`, { area, max_drive_minutes: max });
+    const res = await post(f.browse ? "/donation-locations/routes" : `/listings/${encodeURIComponent(f.id)}/donation-routes`, { area, max_drive_minutes: max });
     if (stale()) return;
     const rows = (res.destinations || []).filter(d => d && d.id != null && Number.isFinite(d.drive_minutes));
     Object.assign(r, { rows, origin: res.origin || null, status: rows.length ? "ok" : "empty", searchedMax: res.max_drive_minutes ?? max, searchedArea: area });
@@ -949,6 +971,7 @@ const actions = {
   "send-report": async el => { const reason = $("#report-reason").value.trim(); if (!reason) { $("#report-err").innerHTML = sheetError("Tell us what happened."); return; } el.disabled = true; try { await post(`/users/${encodeURIComponent(el.dataset.id)}/report`, { reason }); closeSheet(); toast("Report received. Thank you."); } catch (e) { el.disabled = false; $("#report-err").innerHTML = sheetError(e.message); } },
   "block-user": el => requireAuth(() => openConfirm({ title: "Block this user?", text: "Their listings won't be matched with yours.", confirm: "Block", danger: true, onConfirm: async () => { try { await post(`/users/${encodeURIComponent(el.dataset.id)}/block`); toast("User blocked."); await load(); } catch (e) { toast(e.message); } } })),
   "open-fallback": el => openFallback(el.dataset.id),
+  "open-donation-locations": openDonationLocations,
   "route-retry": () => runRouteSearch(),
   "propose": async el => { const m = S.fallback.fb.matches[Number(el.dataset.idx)], id = S.fallback.id; el.disabled = true; const r = await act(() => post("/offers", { listing_id: id, match_id: m.listing?.id || m.match_id }), "Swap offer sent. You both need to accept."); if (r) closeSheet(); else openFallback(id); },
   "fb-giveaway": () => { const id = S.fallback.id, l = findListing(id); if (!l) return toast("Couldn't load this listing. Refresh and try again."); closeSheet(); editListing(l, { mode: "giveaway" }); },
@@ -1037,7 +1060,7 @@ document.addEventListener("submit", async e => {
 });
 
 function signedOut() {
-  routeSeq++; fbSeq++; destroyDMap(); if (S.fallback || sheetOpen()) { if (S.fallback) closeSheet(); S.fallback = null; }
+  if (!S.fallback?.browse) { routeSeq++; fbSeq++; if (S.fallback) { destroyDMap(); closeSheet(); S.fallback = null; } }
   S.user = null; S.myListings = []; S.myOffers = []; S.myRequests = []; S.notifications = []; S.activityLoaded = false;
   if (S.editingId || (S.photo && !S.photo.guestDraft) || S.approval || S.reviewing) { resetEditor(false); S.share.step = "compose"; }
   renderAll();

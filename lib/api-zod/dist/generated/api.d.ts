@@ -388,6 +388,46 @@ export declare const GetFallbackOptionsParams: zod.ZodObject<{
     id: string;
 }>;
 export declare const GetFallbackOptionsResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
+/**
+ * @summary Browse the existing donation directory without an account or listing
+ */
+export declare const GetDonationLocationsResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
+/**
+ * @summary Optional driving times to the existing directory; no listing or account required
+ */
+export declare const searchDonationLocationRoutesBodyAreaMin = 2;
+export declare const searchDonationLocationRoutesBodyAreaMax = 100;
+export declare const SearchDonationLocationRoutesBody: zod.ZodObject<{
+    area: zod.ZodString;
+    max_drive_minutes: zod.ZodUnion<[zod.ZodLiteral<15>, zod.ZodLiteral<30>, zod.ZodLiteral<60>]>;
+}, "strip", zod.ZodTypeAny, {
+    area: string;
+    max_drive_minutes: 15 | 30 | 60;
+}, {
+    area: string;
+    max_drive_minutes: 15 | 30 | 60;
+}>;
+export declare const SearchDonationLocationRoutesResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
+export declare const FindDonationRoutesParams: zod.ZodObject<{
+    id: zod.ZodString;
+}, "strip", zod.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
+export declare const findDonationRoutesBodyAreaMin = 2;
+export declare const findDonationRoutesBodyAreaMax = 100;
+export declare const FindDonationRoutesBody: zod.ZodObject<{
+    area: zod.ZodString;
+    max_drive_minutes: zod.ZodUnion<[zod.ZodLiteral<15>, zod.ZodLiteral<30>, zod.ZodLiteral<60>]>;
+}, "strip", zod.ZodTypeAny, {
+    area: string;
+    max_drive_minutes: 15 | 30 | 60;
+}, {
+    area: string;
+    max_drive_minutes: 15 | 30 | 60;
+}>;
+export declare const FindDonationRoutesResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const GetOffersResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const ProposeOfferBody: zod.ZodObject<{
     listing_id: zod.ZodString;

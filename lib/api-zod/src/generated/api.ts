@@ -202,6 +202,28 @@ export const GetFallbackOptionsParams = zod.object({
 export const GetFallbackOptionsResponse = zod.record(zod.string(), zod.unknown())
 
 
+/**
+ * @summary Browse the existing donation directory without an account or listing
+ */
+export const GetDonationLocationsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Optional driving times to the existing directory; no listing or account required
+ */
+export const searchDonationLocationRoutesBodyAreaMin = 2;
+export const searchDonationLocationRoutesBodyAreaMax = 100;
+
+
+
+export const SearchDonationLocationRoutesBody = zod.object({
+  "area": zod.string().min(searchDonationLocationRoutesBodyAreaMin).max(searchDonationLocationRoutesBodyAreaMax),
+  "max_drive_minutes": zod.union([zod.literal(15),zod.literal(30),zod.literal(60)])
+})
+
+export const SearchDonationLocationRoutesResponse = zod.record(zod.string(), zod.unknown())
+
+
 export const FindDonationRoutesParams = zod.object({
   "id": zod.coerce.string()
 })

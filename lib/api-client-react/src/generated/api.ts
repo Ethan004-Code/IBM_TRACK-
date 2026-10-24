@@ -1095,6 +1095,195 @@ export function useGetFallbackOptions<TData = Awaited<ReturnType<typeof getFallb
 
 
 
+export const getGetDonationLocationsUrl = () => {
+
+
+
+
+  return `/api/donation-locations`
+}
+
+/**
+ * @summary Browse the existing donation directory without an account or listing
+ */
+export const getDonationLocations = async ( options?: Parameters<typeof customFetch>[1]): Promise<JsonResult> => {
+
+  return customFetch<JsonResult>(getGetDonationLocationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDonationLocationsQueryKey = () => {
+    return [
+    `/api/donation-locations`
+    ] as const;
+    }
+
+
+export const getGetDonationLocationsQueryOptions = <TData = Awaited<ReturnType<typeof getDonationLocations>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDonationLocationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDonationLocations>>> = ({ signal }) => getDonationLocations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDonationLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof getDonationLocations>>>
+export type GetDonationLocationsQueryError = ErrorType<unknown>
+
+
+export function useGetDonationLocations<TData = Awaited<ReturnType<typeof getDonationLocations>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDonationLocations>>,
+          TError,
+          Awaited<ReturnType<typeof getDonationLocations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDonationLocations<TData = Awaited<ReturnType<typeof getDonationLocations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDonationLocations>>,
+          TError,
+          Awaited<ReturnType<typeof getDonationLocations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDonationLocations<TData = Awaited<ReturnType<typeof getDonationLocations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Browse the existing donation directory without an account or listing
+ */
+
+export function useGetDonationLocations<TData = Awaited<ReturnType<typeof getDonationLocations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDonationLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDonationLocationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchDonationLocationRoutesUrl = () => {
+
+
+
+
+  return `/api/donation-locations/routes`
+}
+
+/**
+ * @summary Optional driving times to the existing directory; no listing or account required
+ */
+export const searchDonationLocationRoutes = async (donationRouteInput: DonationRouteInput, options?: Parameters<typeof customFetch>[1]): Promise<JsonResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JsonResult>(getSearchDonationLocationRoutesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(donationRouteInput)
+  }
+);}
+
+
+
+
+
+export const getSearchDonationLocationRoutesMutationKey = () => ['searchDonationLocationRoutes'] as const;
+
+export const getSearchDonationLocationRoutesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof searchDonationLocationRoutes>>, TError,SearchDonationLocationRoutesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof searchDonationLocationRoutes>>, TError,SearchDonationLocationRoutesMutationVariables, TContext> => {
+
+const mutationKey = getSearchDonationLocationRoutesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof searchDonationLocationRoutes>>, SearchDonationLocationRoutesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  searchDonationLocationRoutes(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SearchDonationLocationRoutesMutationResult = NonNullable<Awaited<ReturnType<typeof searchDonationLocationRoutes>>>
+    export type SearchDonationLocationRoutesMutationBody = BodyType<DonationRouteInput>
+    export type SearchDonationLocationRoutesMutationError = ErrorType<void>
+    export type SearchDonationLocationRoutesMutationVariables = {data: BodyType<DonationRouteInput>}
+
+    /**
+ * @summary Optional driving times to the existing directory; no listing or account required
+ */
+export const useSearchDonationLocationRoutes = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof searchDonationLocationRoutes>>, TError,SearchDonationLocationRoutesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof searchDonationLocationRoutes>>,
+        TError,
+        SearchDonationLocationRoutesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSearchDonationLocationRoutesMutationOptions(options), queryClient);
+    }
+
 export const getFindDonationRoutesUrl = (id: string,) => {
 
 

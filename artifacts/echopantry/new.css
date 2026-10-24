@@ -393,3 +393,9 @@ details.more .dn-cards .dest { background: var(--surface); }
 .rp-pin-wrap.selected { z-index: 1000 !important; }
 @media (min-width: 560px) { .route-form { grid-template-columns: minmax(0, 1fr) 120px auto; } .route-form .btn { grid-column: auto; } }
 @media (prefers-reduced-motion: reduce) { .rp-pin, .dest-pickable { transition: none; } }
+
+/* Public donation directory */
+.pill-donate { background: var(--forest-tint); border-color: transparent; color: var(--forest-text); }
+.dn-notice { padding: 12px 14px; border-radius: 14px; background: var(--warm-tint); color: var(--warm-text); font-size: 14px; line-height: 1.45; }
+.dn-notice p { margin: 0; }
+.dn-notice p + p { margin-top: 6px; }

@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 export * from './decisionInput';
+export * from './donationRouteInput';
+export * from './donationRouteInputMaxDriveMinutes';
 export * from './foodItem';
 export * from './foodItemCategory';
 export * from './foodItemDateType';

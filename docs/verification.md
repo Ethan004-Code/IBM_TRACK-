@@ -44,6 +44,15 @@
 - Nine focused frontend state checks passed, including late-response rejection after area edits, sheet replacement, sheet close and another sheet replacing a pending fallback fetch. These race checks used a Node VM, not browser timing.
 - The temporary auth account, listing, profile, notifications and local session file were removed. No listing was published and no donation or compost outcome was recorded.
 
+## Public donation-locations entry point
+
+- Discover now offers Donation locations without signing in or creating a listing, including loading, empty and listing-error states. It reuses the existing map controller, directory cards and driving-time search renderer.
+- The public directory and route endpoints reuse the existing directory and routing provider. They bypass account lookup and private database snapshots, do not write outcomes, and retain same-origin request protection. Listing-specific donation/reporting endpoints remain protected.
+- All 54 targeted Python tests pass, including public access, stale-cookie browsing, provider errors, missing configuration, malformed search input, cross-origin rejection and protection of listing/outcome endpoints. OpenAPI code generation, generated-library type checks and the production build pass.
+- A real anonymous preview request returned all three directory locations, and a real anonymous San Jose driving search returned three locations within 30 minutes. No database fixtures or public food posts were created.
+- Eleven frontend VM checks passed for anonymous loading/search/results, public cards without reporting controls or item-match claims, error/empty states, stale response cancellation and retention of owner reporting controls.
+- A 402px preview screenshot confirms that the signed-out Discover page displays the new button in the existing layout. The public panel's click-through flow was checked through frontend state tests rather than a new browser automation pass; the unchanged Leaflet controller was browser-verified in the earlier fallback-map pass.
+
 ## Pilot browser checks still recommended
 
 1. Sign up through the website using two pilot email addresses; follow confirmation links if the Supabase project requires them.

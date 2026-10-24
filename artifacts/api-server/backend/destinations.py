@@ -174,6 +174,42 @@ def suitable(listing, option):
 
 
 def install_destinations(app, legacy, persist, ledger):
+    def route_response(destinations):
+        """One routing implementation for public browsing and eligible listings."""
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            raise BadRequest("Send a city or ZIP code and a 15, 30, or 60 minute drive limit.")
+        try:
+            max_drive_minutes = int(data.get("max_drive_minutes", 30))
+        except (TypeError, ValueError):
+            raise BadRequest("Choose a 15, 30, or 60 minute drive limit.") from None
+        if max_drive_minutes not in (15, 30, 60):
+            raise BadRequest("Choose a 15, 30, or 60 minute drive limit.")
+        api_key = os.getenv(API_KEY_ENV)
+        if not api_key:
+            raise ServiceUnavailable("Live driving times are unavailable right now. You can still browse donation locations and their official links.")
+        if not destinations:
+            return jsonify(origin=None, max_drive_minutes=max_drive_minutes, destinations=[])
+        try:
+            result = search_routes(data.get("area"), max_drive_minutes, destinations, api_key)
+        except ValueError as error:
+            raise BadRequest(str(error)) from None
+        except ProviderError as error:
+            raise BadGateway(str(error)) from None
+        return jsonify(result)
+
+    @app.get("/api/donation-locations")
+    def donation_locations():
+        return jsonify(
+            options=[option for option in DIRECTORY if option["type"] == "donation"],
+            routing_configured=bool(os.getenv(API_KEY_ENV)),
+            message="Directory coverage is limited to San Jose / Silicon Valley. These are researched locations, not confirmation that your food will be accepted. Check current item rules and opening hours before visiting.",
+        )
+
+    @app.post("/api/donation-locations/routes")
+    def donation_location_routes():
+        return route_response([option for option in DIRECTORY if option["type"] == "donation"])
+
     @app.get("/api/listings/<listing_id>/fallback-options")
     def fallback_options(listing_id):
         row = own_listing(listing_id)
@@ -187,26 +223,8 @@ def install_destinations(app, legacy, persist, ledger):
     @app.post("/api/listings/<listing_id>/donation-routes")
     def donation_routes(listing_id):
         row = own_listing(listing_id)
-        data = request.get_json(silent=True) or {}
-        try:
-            max_drive_minutes = int(data.get("max_drive_minutes", 30))
-        except (TypeError, ValueError):
-            raise BadRequest("Choose a 15, 30, or 60 minute drive limit.") from None
-        if max_drive_minutes not in (15, 30, 60):
-            raise BadRequest("Choose a 15, 30, or 60 minute drive limit.")
-        api_key = os.getenv(API_KEY_ENV)
-        if not api_key:
-            raise ServiceUnavailable("Live driving times need OPENROUTESERVICE_API_KEY in Replit Secrets.")
         destinations = [option for option in DIRECTORY if option["type"] == "donation" and suitable(row, option)]
-        if not destinations:
-            return jsonify(origin=None, max_drive_minutes=max_drive_minutes, destinations=[])
-        try:
-            result = search_routes(data.get("area"), max_drive_minutes, destinations, api_key)
-        except ValueError as error:
-            raise BadRequest(str(error)) from None
-        except ProviderError as error:
-            raise BadGateway(str(error)) from None
-        return jsonify(result)
+        return route_response(destinations)
 
     @app.post("/api/outcomes")
     def external_outcome():

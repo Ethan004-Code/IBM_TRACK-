@@ -158,6 +158,37 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonResult" }
+  /donation-locations:
+    get:
+      operationId: getDonationLocations
+      summary: Browse the existing donation directory without an account or listing
+      responses:
+        "200":
+          description: Researched donation locations, coverage notice and routing availability; not item-specific acceptance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /donation-locations/routes:
+    post:
+      operationId: searchDonationLocationRoutes
+      summary: Optional driving times to the existing directory; no listing or account required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DonationRouteInput" }
+      responses:
+        "200":
+          description: Existing directory destinations sorted and filtered by live driving time; not item-specific acceptance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+        "400":
+          description: Invalid search area or drive limit
+        "502":
+          description: Routing provider unavailable; directory remains accessible
+        "503":
+          description: Driving-time search is not configured; directory remains accessible
   /listings/{id}/donation-routes:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
