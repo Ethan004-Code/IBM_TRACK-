@@ -1,4 +1,4 @@
-/* EchoPantry: app-style frontend.
+/* RePlate: app-style frontend.
    Uses the same Flask API, fields and rules as app.js. Only the screens are new. */
 const API = "/api";
 const ZONES = ["Library steps", "Community Center", "Neighborhood Park", "Student Union", "Campus Green", "Dining Commons"];
@@ -19,7 +19,7 @@ async function api(path, options = {}) {
   try { res = await fetch(`${API}${path}`, { credentials: "include", headers: { "Content-Type": "application/json" }, ...options }); }
   catch (er) {
     if (er?.name === "AbortError") { const e = Error("The request timed out."); e.timeout = true; throw e; }
-    throw Error("Can't reach the EchoPantry server. Check your connection and try again.");
+    throw Error("Can't reach the RePlate server. Check your connection and try again.");
   }
   let data = {}; try { data = await res.json(); } catch {}
   if (!res.ok) { const e = Error(data.error || `Something went wrong (${res.status}). Try again.`); e.status = res.status; e.data = data; throw e; }
@@ -190,7 +190,7 @@ function viewDiscover() {
   const hoursLabel = HOURS.find(h => h.v === f.hours)?.l || "Any time";
   return `<div class="promo"><div class="grow"><p class="title">Got extra groceries?</p><p class="sub">Snap a photo, describe it in a sentence, and Bob drafts the listing for you to check.</p></div>
       <button type="button" class="btn" data-action="go-share">${icon("camera", 18)}Post with a photo</button></div>
-    <header class="vh discover-head"><div class="vh-row mobile-only"><a class="brand-inline" href="#discover" data-action="tab" data-tab="discover"><span class="brand-mark" aria-hidden="true">e</span><span>echo<strong>pantry</strong></span></a>${accountBtn()}</div>
+    <header class="vh discover-head"><div class="vh-row mobile-only"><a class="brand-inline" href="#discover" data-action="tab" data-tab="discover"><span class="brand-mark" aria-hidden="true">R</span><span>Re<strong>Plate</strong></span></a>${accountBtn()}</div>
       <div><h1 class="large-title">Food near you</h1><p class="vh-sub">Groceries your neighbors are passing along</p></div>
       <div class="discover-filters">
         <div class="seg" role="group" aria-label="Show">${[["", "All"], ["exchange", "Swaps"], ["giveaway", "Free"]].map(([v, l]) => `<button type="button" data-action="filter-mode" data-value="${v}" aria-pressed="${f.mode === v}">${l}</button>`).join("")}</div>
@@ -474,7 +474,7 @@ async function uploadSelectedPhoto() {
   S.photoBusy = true; S.photoStatus = ""; photoChanged();
   const fd = new FormData(); fd.append("photo", file);
   try {
-    const res = await fetch(`${API}/listing-photos`, { method: "POST", credentials: "include", body: fd }).catch(() => { throw Error("Can't reach the EchoPantry server."); });
+    const res = await fetch(`${API}/listing-photos`, { method: "POST", credentials: "include", body: fd }).catch(() => { throw Error("Can't reach the RePlate server."); });
     let data = {}; try { data = await res.json(); } catch {}
     if (!res.ok) throw Error(data.error || `Upload failed (${res.status}).`);
     if (!data.photo_id || !data.preview_url) throw Error("The upload didn't return a saved photo. Please retry.");
@@ -633,9 +633,9 @@ function authBody(mode, err = "", busy = false, ok = "") {
       <div class="row"><label for="a-pass">Password</label><input id="a-pass" name="password" type="password" autocomplete="${s ? "new-password" : "current-password"}" placeholder="${s ? "At least 8 characters" : "Required"}"></div>
     </div>${sheetError(err)}${ok ? `<p class="info">${esc(ok)}</p>` : ""}
     <button type="submit" class="btn btn-primary btn-block"${busy ? " disabled" : ""}>${busy ? '<span class="spin" aria-hidden="true"></span>' : ""}${s ? "Create account" : "Sign in"}</button>
-    <p class="foot" style="margin:0;text-align:center">Passwords are handled by Supabase Auth and never stored in EchoPantry profiles.</p></form>`;
+    <p class="foot" style="margin:0;text-align:center">Passwords are handled by Supabase Auth and never stored in RePlate profiles.</p></form>`;
 }
-function openSignIn(mode = "login", title) { openSheet(title || (mode === "signup" ? "Join EchoPantry" : "Welcome back"), authBody(mode)); }
+function openSignIn(mode = "login", title) { openSheet(title || (mode === "signup" ? "Join RePlate" : "Welcome back"), authBody(mode)); }
 function openAccount() {
   openSheet("Your account", `<dl class="kv"><dt>Name</dt><dd>${esc(S.user.display_name)}</dd>${S.user.email ? `<dt>Email</dt><dd>${esc(S.user.email)}</dd>` : ""}</dl>
     <button type="button" class="btn btn-secondary btn-block" data-action="sign-out">Sign out</button>
@@ -791,11 +791,11 @@ const actions = {
   "offer-swap": el => requireAuth(() => {
     const mine = S.myListings.filter(x => x.status === "open" && x.mode === "exchange");
     if (mine.length) { toast("Swaps come from your own listing. Checking your matches…"); openFallback(mine[0].id); return; }
-    openSheet("List your food first", `<p style="margin:0;font-size:15.5px;line-height:1.45">Swaps are matched from your own listing. List what you have and what you'd like, and EchoPantry finds swaps when the foods and times line up.</p><button type="button" class="btn btn-primary btn-block" data-action="go-share">List my food</button>`);
+    openSheet("List your food first", `<p style="margin:0;font-size:15.5px;line-height:1.45">Swaps are matched from your own listing. List what you have and what you'd like, and RePlate finds swaps when the foods and times line up.</p><button type="button" class="btn btn-primary btn-block" data-action="go-share">List my food</button>`);
   }),
   "open-request": () => requireAuth(openRequestForm),
   "open-signin": () => openSignIn(),
-  "auth-mode": el => { setSheetBody(authBody(el.dataset.value)); const h = $("#sheet-title"); if (h) h.textContent = el.dataset.value === "signup" ? "Join EchoPantry" : "Welcome back"; },
+  "auth-mode": el => { setSheetBody(authBody(el.dataset.value)); const h = $("#sheet-title"); if (h) h.textContent = el.dataset.value === "signup" ? "Join RePlate" : "Welcome back"; },
   "open-account": openAccount,
   "sign-out": async () => { resetEditor(true); try { await post("/auth/logout"); } catch {} signedOut(); closeSheet(); toast("Signed out."); await load(); },
   "delete-account": () => openConfirm({ title: "Delete your account?", text: "This turns off sign-in and hides your active listings.", confirm: "Delete account", danger: true, onConfirm: async () => { try { await api("/auth/account", { method: "DELETE" }); signedOut(); closeSheet(); toast("Account deactivated."); await load(); } catch (e) { toast(e.message); } } }),
@@ -890,7 +890,7 @@ document.addEventListener("submit", async e => {
       const r = await post(`/auth/${s ? "signup" : "login"}`, s ? { display_name: name, email, password } : { email, password });
       if (r.email_confirmation_required) return setSheetBody(authBody("login", "", false, "Check your email to confirm your account, then sign in."));
       S.user = r.user; if (S.photo?.file) S.photo.guestDraft = false;
-      closeSheet(); renderAll(); toast(s ? "Welcome to EchoPantry." : "You're signed in.");
+      closeSheet(); renderAll(); toast(s ? "Welcome to RePlate." : "You're signed in.");
       if (S.photo?.file && !S.photo.id) uploadSelectedPhoto();
       await load();
       const next = S.pendingAfterAuth; S.pendingAfterAuth = null; if (next) next();

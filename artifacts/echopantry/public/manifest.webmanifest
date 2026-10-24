@@ -1,6 +1,6 @@
 {
-  "name": "EchoPantry",
-  "short_name": "EchoPantry",
+  "name": "RePlate",
+  "short_name": "RePlate",
   "description": "Share surplus groceries with neighbors and arrange a public pickup.",
   "start_url": "/",
   "scope": "/",
