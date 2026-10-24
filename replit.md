@@ -12,7 +12,7 @@ Community surplus-food exchange and giveaway website, corrected against the user
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- Required secrets: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, BOB_API_KEY. Never print values.
+- Required secrets: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, BOB_API_KEY, OPENROUTESERVICE_API_KEY. Never print values.
 - Supabase setup: apply `artifacts/api-server/backend/supabase_schema.sql` then `interview_migration.sql` in the existing Supabase project. Never run schema changes at app startup; administrative migrations require user authorization.
 
 ## Stack

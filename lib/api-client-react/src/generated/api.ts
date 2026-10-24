@@ -26,6 +26,7 @@ import type {
 
 import type {
   DecisionInput,
+  DonationRouteInput,
   GetListingsParams,
   HealthStatus,
   InterpretationInput,
@@ -1093,6 +1094,89 @@ export function useGetFallbackOptions<TData = Awaited<ReturnType<typeof getFallb
 
 
 
+
+export const getFindDonationRoutesUrl = (id: string,) => {
+
+
+
+
+  return `/api/listings/${id}/donation-routes`
+}
+
+export const findDonationRoutes = async (id: string,
+    donationRouteInput: DonationRouteInput, options?: Parameters<typeof customFetch>[1]): Promise<JsonResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JsonResult>(getFindDonationRoutesUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(donationRouteInput)
+  }
+);}
+
+
+
+
+
+export const getFindDonationRoutesMutationKey = () => ['findDonationRoutes'] as const;
+
+export const getFindDonationRoutesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findDonationRoutes>>, TError,FindDonationRoutesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof findDonationRoutes>>, TError,FindDonationRoutesMutationVariables, TContext> => {
+
+const mutationKey = getFindDonationRoutesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof findDonationRoutes>>, FindDonationRoutesMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  findDonationRoutes(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FindDonationRoutesMutationResult = NonNullable<Awaited<ReturnType<typeof findDonationRoutes>>>
+    export type FindDonationRoutesMutationBody = BodyType<DonationRouteInput>
+    export type FindDonationRoutesMutationError = ErrorType<unknown>
+    export type FindDonationRoutesMutationVariables = {id: string;data: BodyType<DonationRouteInput>}
+
+    export const useFindDonationRoutes = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findDonationRoutes>>, TError,FindDonationRoutesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof findDonationRoutes>>,
+        TError,
+        FindDonationRoutesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getFindDonationRoutesMutationOptions(options), queryClient);
+    }
 
 export const getGetOffersUrl = () => {
 

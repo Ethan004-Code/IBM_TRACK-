@@ -202,6 +202,23 @@ export const GetFallbackOptionsParams = zod.object({
 export const GetFallbackOptionsResponse = zod.record(zod.string(), zod.unknown())
 
 
+export const FindDonationRoutesParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const findDonationRoutesBodyAreaMin = 2;
+export const findDonationRoutesBodyAreaMax = 100;
+
+
+
+export const FindDonationRoutesBody = zod.object({
+  "area": zod.string().min(findDonationRoutesBodyAreaMin).max(findDonationRoutesBodyAreaMax),
+  "max_drive_minutes": zod.union([zod.literal(15),zod.literal(30),zod.literal(60)])
+})
+
+export const FindDonationRoutesResponse = zod.record(zod.string(), zod.unknown())
+
+
 export const GetOffersResponse = zod.record(zod.string(), zod.unknown())
 
 

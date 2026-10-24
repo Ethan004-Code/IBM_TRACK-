@@ -7,6 +7,8 @@
  */
 
 export * from './decisionInput';
+export * from './donationRouteInput';
+export * from './donationRouteInputMaxDriveMinutes';
 export * from './foodItem';
 export * from './foodItemCategory';
 export * from './foodItemDateType';

@@ -110,7 +110,9 @@ def install_runtime(app, legacy):
             remove_objects(getattr(g, "new_photo_objects", []))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "same-origin"
+        # OSM's public tile service requires a valid web Referer. This policy
+        # sends only the deployment origin, never the user's search details.
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
 
     @app.errorhandler(Exception)

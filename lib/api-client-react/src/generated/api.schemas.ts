@@ -133,6 +133,24 @@ export interface DecisionInput {
   accept: boolean;
 }
 
+export type DonationRouteInputMaxDriveMinutes = typeof DonationRouteInputMaxDriveMinutes[keyof typeof DonationRouteInputMaxDriveMinutes];
+
+
+export const DonationRouteInputMaxDriveMinutes = {
+  NUMBER_15: 15,
+  NUMBER_30: 30,
+  NUMBER_60: 60,
+} as const;
+
+export interface DonationRouteInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  area: string;
+  max_drive_minutes: DonationRouteInputMaxDriveMinutes;
+}
+
 export type OutcomeInputAction = typeof OutcomeInputAction[keyof typeof OutcomeInputAction];
 
 

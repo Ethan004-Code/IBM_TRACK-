@@ -1,3 +1,6 @@
+import * as L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
 const API = "/api";
 const ZONES = ["Library steps","Community Center","Neighborhood Park","Student Union","Campus Green","Dining Commons"];
 const UNITS = ["each","g","kg","oz","lb","bag","can","box","bottle","package"];
@@ -5,6 +8,7 @@ const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const $ = s => document.querySelector(s);
 const listingsEl = $("#listings"), form = $("#listing-form"), notice = $("#form-notice"), offerArea = $("#offer-area"), toast = $("#toast");
 let listings = [], myListings = [], myOffers = [], myRequests = [], sessionUser = null, authMode = "login", toastTimer, loaded = false;
+let donationMap = null, donationMarkers = new Map();
 const inedible = new Set();
 
 function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -148,22 +152,104 @@ document.addEventListener("click", async e => {
 $("#refresh-activity").onclick = () => sessionUser ? load() : openAuth();
 
 /* Fallback + matches */
+function destroyDonationMap() {
+  if (donationMap) donationMap.remove();
+  donationMap = null; donationMarkers = new Map();
+}
+function donationCard(o) {
+  const route = Number.isFinite(o.drive_minutes) ? `<strong class="route-time">${esc(o.drive_minutes)} min</strong><span>${esc(o.drive_miles)} mi by car</span>` : `<span>Search for live drive time</span>`;
+  const rules = o.item_rules_status === "matched" ? "Verified item match" : "Acceptance verified — confirm your item";
+  return `<article class="donation-card" data-donation-card="${esc(o.id)}" tabindex="0">
+    <div class="donation-card-head"><div><span class="verified-badge">${esc(rules)}</span><h5>${esc(o.name)}</h5></div><div class="route-summary">${route}</div></div>
+    <p>${esc(o.address || o.location)}</p><p>${esc(o.policy || "See the official donation instructions for current acceptance rules.")}</p>
+    <p>${esc(o.hours || "Hours not published")}</p>
+    <p class="source-line">Acceptance source checked ${esc(o.checked_at || "unknown")} &middot; <a href="${esc(o.url)}" target="_blank" rel="noopener">Official donation instructions</a></p>
+    ${o.notice ? `<p class="muted">${esc(o.notice)}</p>` : ""}
+    <div class="donation-confirm">
+      <label class="check"><input type="checkbox" data-feasible="${esc(o.id)}"><span>These unopened packages contain no glass, and I confirmed acceptance and can reach this destination during its published hours.</span></label>
+      <label class="check"><input type="checkbox" data-drop="${esc(o.id)}"><span>I actually dropped this food off at ${esc(o.name)}.</span></label>
+      <button type="button" class="mini-btn" data-outcome="${esc(o.id)}" data-type="donation">Record donation drop-off</button>
+    </div>
+  </article>`;
+}
+function compostCard(o, isInedible) {
+  return `<div class="option"><strong>${esc(o.name)}</strong> <span class="status">compost</span><p>${esc(o.location)} &middot; Hours: ${esc(o.hours || "not published")}</p><p>Accepts: ${esc((o.accepted_categories || []).join(", ") || "see website")}${o.exclusions?.length ? ` &middot; Excludes: ${esc(o.exclusions.join(", "))}` : ""}</p>${o.notice ? `<p class="muted">${esc(o.notice)}</p>` : ""}<p class="muted">Checked ${esc(o.checked_at || "unknown")} ${o.url ? `&middot; <a href="${esc(o.url)}" target="_blank" rel="noopener">Confirm current rules</a>` : ""}</p>${!isInedible ? `<p class="muted">Composting is only for food that is no longer edible. Confirm below first.</p>` : `<label class="check"><input type="checkbox" data-feasible="${esc(o.id)}"><span>These are accepted fruit/vegetable scraps, and I confirmed acceptance and can reach this San Jose destination during its published hours.</span></label><label class="check"><input type="checkbox" data-drop="${esc(o.id)}"><span>I actually dropped this food off at ${esc(o.name)}.</span></label><button class="mini-btn" data-outcome="${esc(o.id)}" data-type="compost">Record compost drop-off</button>`}</div>`;
+}
+function selectDonation(id) {
+  offerArea.querySelectorAll("[data-donation-card]").forEach(card => card.classList.toggle("selected", card.dataset.donationCard === id));
+  const marker = donationMarkers.get(id); if (marker && donationMap) { donationMap.panTo(marker.getLatLng()); marker.openPopup(); }
+}
+function renderDonationMap(destinations, origin) {
+  destroyDonationMap();
+  const container = $("#donation-map"); if (!container || !destinations.length) return;
+  donationMap = L.map(container, {scrollWheelZoom:false, zoomControl:true});
+  const tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'});
+  tileLayer.on("tileerror", () => { const s = $("#donation-map-status"); if (s) s.textContent = "Map tiles are unavailable, but the verified destination cards still work."; });
+  tileLayer.addTo(donationMap);
+  const points = [];
+  destinations.forEach(o => {
+    if (!Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) return;
+    const marker = L.marker([o.latitude, o.longitude], {icon:L.divIcon({className:"donation-pin", html:"<span></span>", iconSize:[25,32], iconAnchor:[12,30]})}).addTo(donationMap).bindPopup(`<strong>${esc(o.name)}</strong><br>${esc(o.address || o.location)}`);
+    marker.on("click", () => selectDonation(o.id)); donationMarkers.set(o.id, marker); points.push([o.latitude, o.longitude]);
+  });
+  if (origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude)) {
+    L.circleMarker([origin.latitude, origin.longitude], {radius:7, color:"#315f45", fillColor:"#fff", fillOpacity:1, weight:3}).addTo(donationMap).bindPopup(`Search area: ${esc(origin.label)}`);
+    points.push([origin.latitude, origin.longitude]);
+  }
+  if (points.length === 1) donationMap.setView(points[0], 12); else donationMap.fitBounds(points, {padding:[28,28], maxZoom:12});
+  setTimeout(() => donationMap?.invalidateSize(), 0);
+}
+function bindDonationCards() {
+  offerArea.querySelectorAll("[data-donation-card]").forEach(card => {
+    card.onclick = e => { if (!e.target.closest("a,button,input,label")) selectDonation(card.dataset.donationCard); };
+    card.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectDonation(card.dataset.donationCard); } };
+  });
+}
+function bindOutcomeButtons(id) {
+  offerArea.querySelectorAll("[data-outcome]").forEach(btn => btn.onclick = async () => {
+    const cb = offerArea.querySelector(`[data-drop="${CSS.escape(btn.dataset.outcome)}"]`), fz = offerArea.querySelector(`[data-feasible="${CSS.escape(btn.dataset.outcome)}"]`);
+    if (!fz?.checked) return showToast("Confirm acceptance and that you can reach this destination.");
+    if (!cb?.checked) return showToast("Confirm you actually dropped it off.");
+    const compost = btn.dataset.type === "compost", body = {listing_id:id, destination_id:btn.dataset.outcome, action:compost ? "compost" : "donation", confirmed:true, destination_feasible_confirmed:true};
+    if (!compost) body.no_glass_confirmed = true; else Object.assign(body, {inedible_confirmed:true, material:"fruit_vegetable_scraps"});
+    if (await act(() => post("/outcomes", body), "Drop-off recorded as user-reported.")) { destroyDonationMap(); offerArea.hidden = true; load(); }
+  });
+}
 async function openFallback(id) {
-  offerArea.hidden = false; offerArea.innerHTML = `<p class="muted">Checking matches and options...</p>`; offerArea.scrollIntoView({behavior:"smooth", block:"center"});
+  destroyDonationMap(); offerArea.hidden = false; offerArea.innerHTML = `<p class="muted">Checking matches and options...</p>`; offerArea.scrollIntoView({behavior:"smooth", block:"center"});
   let fb; try { fb = await api(`/listings/${encodeURIComponent(id)}/fallback-options`); } catch (e) { offerArea.innerHTML = `<h3>Could not load next steps</h3><p>${esc(e.message)}</p><button class="mini-btn" id="fb-retry">Retry</button>`; $("#fb-retry").onclick = () => openFallback(id); return; }
-  const matches = fb.matches || [], opts = fb.options || [], isInedible = fb.inedible_confirmed === true || myListings.some(l => l.id === id && l.inedible_confirmed === true);
+  const matches = fb.matches || [], opts = fb.options || [], donations = opts.filter(o => o.type === "donation"), compost = opts.filter(o => o.type === "compost"), isInedible = fb.inedible_confirmed === true || myListings.some(l => l.id === id && l.inedible_confirmed === true);
   offerArea.innerHTML = `<h3>Next steps for your listing</h3>${fb.message ? `<p>${esc(fb.message)}</p>` : ""}
   ${matches.length ? `<h4 class="sub-head">Compatible matches</h4>` + matches.map((m, i) => `<div class="option"><p>You give ${itemList(m.give_items || m.give)}; you receive ${itemList(m.receive_items || m.receive)}.</p><p>${esc(m.location)} &middot; ${esc(windowText(m.pickup_start, m.pickup_end))}</p>${m.reason ? `<p class="muted">${esc(m.reason)}</p>` : ""}<button class="mini-btn" data-propose="${i}">Propose this fixed offer</button></div>`).join("") : `<p>No compatible exchange match right now.</p>`}
   ${fb.can_switch_to_giveaway ? `<div class="option"><p>You can switch this listing to a giveaway. Only you decide.</p><button class="mini-btn" id="fb-giveaway">Switch to giveaway</button></div>` : ""}
-  <h4 class="sub-head">Donation and compost options</h4><p class="muted">Manually researched directory, not live acceptance. Confirm current rules with the destination before going.</p>
-  ${opts.length ? opts.map(o => `<div class="option"><strong>${esc(o.name)}</strong> <span class="status">${esc(o.type)}</span><p>${esc(o.location)} &middot; Hours: ${esc(o.hours || "not published")}</p><p>Accepts: ${esc((o.accepted_categories || []).join(", ") || "see website")}${o.exclusions?.length ? ` &middot; Excludes: ${esc(o.exclusions.join(", "))}` : ""}</p>${o.notice ? `<p class="muted">${esc(o.notice)}</p>` : ""}<p class="muted">Checked ${esc(o.checked_at || "unknown")} ${o.url ? `&middot; <a href="${esc(o.url)}" target="_blank" rel="noopener">Confirm current rules</a>` : ""}</p>${o.type === "compost" && !isInedible ? `<p class="muted">Composting is only for food that is no longer edible. Confirm below first.</p>` : `<label class="check"><input type="checkbox" data-feasible="${esc(o.id)}"><span>${o.type === "compost" ? "These are accepted fruit/vegetable scraps, and I confirmed acceptance and can reach this San Jose destination during its published hours." : "These unopened packages contain no glass, and I confirmed acceptance and can reach this San Jose destination during its published hours."}</span></label><label class="check"><input type="checkbox" data-drop="${esc(o.id)}"><span>I actually dropped this food off at ${esc(o.name)}.</span></label><button class="mini-btn" data-outcome="${esc(o.id)}" data-type="${esc(o.type)}">Record ${o.type === "compost" ? "compost" : "donation"} drop-off</button>`}</div>`).join("") : `<p>No verified destination is listed for these items or this area.</p>`}
+  <h4 class="sub-head">Verified food donation options</h4>
+  <p class="muted">The organizations' official pages are the acceptance evidence. OpenStreetMap supplies map geography only and is never treated as proof that a place accepts food.</p>
+  ${donations.length ? `<form id="donation-route-form" class="donation-route-form"><label>ZIP code or neighborhood<input name="area" value="95125" maxlength="100" autocomplete="postal-code" required></label><label>Maximum drive<select name="max_drive_minutes"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">60 minutes</option></select></label><button type="submit" class="mini-btn">Find closest options</button></form>
+  <p id="donation-route-status" class="route-status" role="status">${fb.routing_configured ? "Enter your area for live driving times." : "Live driving times are not configured. Add OPENROUTESERVICE_API_KEY to Replit Secrets; verified addresses and links remain available."}</p>
+  <div class="donation-results"><div id="donation-cards" class="donation-cards">${donations.map(donationCard).join("")}</div><div class="donation-map-wrap"><div id="donation-map" class="donation-map" aria-label="Map of verified donation destinations"></div><p id="donation-map-status" class="map-status">Map data © OpenStreetMap contributors. Driving estimates by openrouteservice.</p></div></div>` : `<p>No verified donation destination is compatible with these items. Donation options are shown only for eligible unopened, unexpired, shelf-stable food without glass.</p>`}
+  ${compost.length ? `<h4 class="sub-head">Compost option</h4>${compost.map(o => compostCard(o, isInedible)).join("")}` : ""}
   ${!isInedible ? `<div class="option"><label class="check"><input type="checkbox" id="inedible-check"><span>This food is no longer edible. I understand this withdraws it from edible offers. A passed deadline alone does not mean it is spoiled.</span></label><button class="mini-btn danger" id="inedible-btn">Confirm not edible</button></div>` : ""}
   <p class="muted">Recommendations are not recorded as outcomes. Nothing is donated automatically.</p><button class="mini-btn" id="fb-close">Close</button>`;
   offerArea.querySelectorAll("[data-propose]").forEach(btn => btn.onclick = async () => { const m = matches[btn.dataset.propose]; btn.disabled = true; const r = await act(() => post("/offers", {listing_id:id, match_id:m.listing?.id || m.match_id}), "Offer sent. Both of you must accept."); btn.disabled = false; if (r) offerArea.hidden = true; else openFallback(id); });
   const sw = $("#fb-giveaway"); if (sw) sw.onclick = () => { const l = myListings.find(x => x.id === id) || listings.find(x => x.id === id); if (!l) return showToast("Could not load this listing's details. Refresh and try again."); offerArea.hidden = true; editListing(l, {mode:"giveaway"}); showToast("Review the giveaway details, check with Bob, then publish."); };
   const ib = $("#inedible-btn"); if (ib) ib.onclick = async () => { if (!$("#inedible-check").checked) return showToast("Tick the confirmation first."); if (await act(() => api(`/listings/${encodeURIComponent(id)}`, {method:"PATCH", body:JSON.stringify({inedible_confirmed:true})}), "Marked as not edible.")) { await load(); openFallback(id); } };
-  offerArea.querySelectorAll("[data-outcome]").forEach(btn => btn.onclick = async () => { const cb = offerArea.querySelector(`[data-drop="${CSS.escape(btn.dataset.outcome)}"]`); const fz = offerArea.querySelector(`[data-feasible="${CSS.escape(btn.dataset.outcome)}"]`); if (!fz.checked) return showToast("Confirm acceptance and that you can reach this destination."); if (!cb.checked) return showToast("Confirm you actually dropped it off."); const compost = btn.dataset.type === "compost"; const body = {listing_id:id, destination_id:btn.dataset.outcome, action:compost ? "compost" : "donation", confirmed:true, destination_feasible_confirmed:true}; if (!compost) body.no_glass_confirmed = true; if (compost) Object.assign(body, {inedible_confirmed:true, material:"fruit_vegetable_scraps"}); if (await act(() => post("/outcomes", body), "Drop-off recorded as user-reported.")) { offerArea.hidden = true; load(); } });
-  $("#fb-close").onclick = () => { offerArea.hidden = true; };
+  bindDonationCards(); bindOutcomeButtons(id); if (donations.length) renderDonationMap(donations);
+  const routeForm = $("#donation-route-form"); if (routeForm) {
+    const runRouteSearch = async () => {
+      const button = routeForm.querySelector("button"), statusEl = $("#donation-route-status"), area = routeForm.elements.area.value.trim(), max = Number(routeForm.elements.max_drive_minutes.value);
+      button.disabled = true; statusEl.className = "route-status"; statusEl.textContent = "Calculating live drive times...";
+      try {
+        const result = await post(`/listings/${encodeURIComponent(id)}/donation-routes`, {area, max_drive_minutes:max}), rows = result.destinations || [];
+        $("#donation-cards").innerHTML = rows.length ? rows.map(donationCard).join("") : `<div class="route-empty"><strong>No verified destination is within ${esc(max)} minutes.</strong><p>Try a larger drive limit, another area, an exchange, or a giveaway. We will not suggest an unverified drop-off.</p></div>`;
+        statusEl.textContent = rows.length ? `${rows.length} verified option${rows.length === 1 ? "" : "s"} from ${result.origin?.label || area}, sorted by live driving time.` : `No verified options within ${max} minutes of ${result.origin?.label || area}.`;
+        bindDonationCards(); bindOutcomeButtons(id); renderDonationMap(rows, result.origin);
+      } catch (error) { statusEl.className = "route-status error"; statusEl.textContent = error.message; }
+      finally { button.disabled = false; }
+    };
+    routeForm.onsubmit = e => { e.preventDefault(); runRouteSearch(); };
+    routeForm.elements.max_drive_minutes.onchange = () => { if (routeForm.elements.area.value.trim()) runRouteSearch(); };
+  }
+  $("#fb-close").onclick = () => { destroyDonationMap(); offerArea.hidden = true; };
 }
 
 /* Giveaway request */

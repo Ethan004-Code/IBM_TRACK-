@@ -11,6 +11,7 @@ from werkzeug.exceptions import BadRequest, Forbidden, Conflict, BadGateway, Ser
 
 import rules
 import bob
+import destinations
 from destinations import suitable, DIRECTORY
 
 
@@ -159,9 +160,30 @@ class RuleTests(unittest.TestCase):
         self.invoke("fallback_options", listing_id="one")
         self.assertEqual(g.store["impact_records"], [])
         self.a["deadline"] = (rules.now() - timedelta(days=1)).isoformat()
-        self.assertFalse(suitable(self.a, DIRECTORY[1]))
+        compost = next(option for option in DIRECTORY if option["type"] == "compost")
+        self.assertFalse(suitable(self.a, compost))
         self.a["inedible_confirmed"] = True
-        self.assertTrue(suitable(self.a, DIRECTORY[1]))
+        self.assertTrue(suitable(self.a, compost))
+
+    def test_donation_route_requires_server_key_and_listing_owner(self):
+        self.a["item_details"] = [dict(name="Rice", quantity=1, unit="bag", category="shelf_stable",
+                                       unopened=True, printed_date=None, date_type=None)]
+        with patch.dict("os.environ", {}, clear=True), self.assertRaises(ServiceUnavailable):
+            self.invoke("donation_routes", listing_id="one", data={"area": "95125", "max_drive_minutes": 30})
+        with patch.dict("os.environ", {"OPENROUTESERVICE_API_KEY": "test-key"}, clear=False), self.assertRaises(Forbidden):
+            self.invoke("donation_routes", uid="b", listing_id="one", data={"area": "95125", "max_drive_minutes": 30})
+
+    def test_donation_route_returns_only_compatible_verified_options(self):
+        self.a["item_details"] = [dict(name="Rice", quantity=1, unit="bag", category="shelf_stable",
+                                       unopened=True, printed_date=None, date_type=None)]
+        expected = {"origin": {"label": "95125", "longitude": -121.89, "latitude": 37.33},
+                    "max_drive_minutes": 30, "destinations": []}
+        with patch.dict("os.environ", {"OPENROUTESERVICE_API_KEY": "test-key"}, clear=False), \
+             patch.object(destinations, "search_routes", return_value=expected) as search:
+            response = self.invoke("donation_routes", listing_id="one", data={"area": "95125", "max_drive_minutes": 30})
+        self.assertEqual(response.get_json(), expected)
+        routed = search.call_args.args[2]
+        self.assertEqual({row["id"] for row in routed}, {"second-harvest-curtner", "second-harvest-cypress", "sacred-heart-donation-station"})
 
     def test_unknown_destination_rejected(self):
         with self.assertRaises(BadRequest):

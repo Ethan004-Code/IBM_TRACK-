@@ -158,6 +158,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings/{id}/donation-routes:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: findDonationRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DonationRouteInput" }
+      responses:
+        "200":
+          description: Compatible verified donation destinations sorted and filtered by live driving time
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
   /offers:
     get:
       operationId: getOffers
@@ -318,6 +334,12 @@ components:
       required: [accept]
       properties:
         accept: { type: boolean }
+    DonationRouteInput:
+      type: object
+      required: [area, max_drive_minutes]
+      properties:
+        area: { type: string, minLength: 2, maxLength: 100 }
+        max_drive_minutes: { type: integer, enum: [15, 30, 60] }
     OutcomeInput:
       type: object
       required: [listing_id, destination_id, action, confirmed]
