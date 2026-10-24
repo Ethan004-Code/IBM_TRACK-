@@ -61,7 +61,7 @@ def install_runtime(app, legacy):
             return jsonify(error="Supabase setup is invalid or incomplete. Update the existing project URL and keys."), 503
         if request.endpoint not in {"auth_login", "auth_logout", "auth_signup"}:
             # Public reads may optionally resolve a signed-in user.
-            public = request.endpoint in {"get_listings", "get_impact", "listing_photo"}
+            public = request.endpoint in {"get_listings", "listing_photo"}
             token = request.cookies.get("echo_access_token")
             if public and not token:
                 g.user = None

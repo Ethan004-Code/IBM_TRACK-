@@ -105,7 +105,7 @@ const S = {
   tab: "discover", user: null,
   listings: [], loaded: false, loadError: "",
   myListings: [], myOffers: [], myRequests: [], notifications: [], activityLoaded: false,
-  impact: null, impactError: "",
+  impact: null, impactError: "", impactGen: 0,
   filter: { mode: "", zone: "", hours: 0 },
   actSeg: "sharing",
   share: { step: "compose", text: "", busy: false, error: "", fromBob: false, notes: [] },
@@ -203,6 +203,7 @@ function viewCompose() {
   const sh = S.share;
   return `<header class="vh"><div class="vh-row"><span class="eyebrow">Share food</span>${accountBtn()}</div>
       <h1 class="large-title sm">What do you have to share?</h1>
+      <p class="vh-sub">Bob is RePlate's AI helper. It drafts your listing and checks it before it goes live.</p>
       <p class="vh-sub">Add a photo and describe it. Bob drafts the listing for you to check before anything goes live.</p></header>
     ${!S.user ? `<div class="note">${icon("shield", 22)}<p>You'll need to <button type="button" class="link" data-action="open-signin" style="min-height:0">sign in</button> to upload a photo and publish.</p></div>` : ""}
     <div class="step-label"><span class="step-num">1</span>Add a photo of the food</div>
@@ -236,7 +237,7 @@ function photoSlotHtml(compact) {
 function renderPhotoSlot() { const el = $("#photo-slot"); if (el) el.innerHTML = photoSlotHtml(S.share.step === "review"); }
 
 function conditionOptions(sel) {
-  return [["", "Choose"], ["produce", "Whole produce"], ["shelf_stable", "Unopened package"], ["opened", "Opened package"]]
+  return [["", "Choose"], ["produce", "Whole produce"], ["shelf_stable", "Unopened package"]]
     .map(([v, l]) => `<option value="${v}"${v === sel ? " selected" : ""}>${l}</option>`).join("");
 }
 const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
@@ -263,7 +264,7 @@ function viewReview() {
         <div class="item-grid"><label class="mini" for="want-qty"><span>Quantity</span><input id="want-qty" ${QTY_ATTRS} data-bind="draft.wanted_quantity" value="${esc(d.wanted_quantity)}"></label></div></div></div>`
     : `<p class="foot" style="margin:0 4px">Neighbors can ask for it and you choose who gets it. Nothing is promised until you approve.</p>`;
   return `<header class="vh"><div class="vh-row"><button type="button" class="back-btn" data-action="back-compose">${icon("chevL", 22)}Back</button>${accountBtn()}</div>
-      <h1 class="large-title sm">${S.editingId ? "Edit your listing" : "Check your listing"}</h1><p class="vh-sub">Nothing goes live until Bob checks it and you publish.</p></header>
+      <h1 class="large-title sm">${S.editingId ? "Edit your listing" : "Check your listing"}</h1><p class="vh-sub">Bob is RePlate's AI helper. It drafts your listing and checks it before it goes live.</p><p class="vh-sub">Nothing goes live until Bob checks it and you publish.</p></header>
     ${S.editingId ? `<div class="edit-banner"><span>You're editing a saved listing. It stays unchanged until you publish.</span><button type="button" class="link" data-action="cancel-edit">Cancel</button></div>` : ""}
     ${sh.fromBob ? `<span class="bob-tag">${icon("sparkle", 15)}Drafted by Bob · check each detail</span>` : ""}
     ${sh.notes.length ? `<div class="check-note"><p>Please check</p><ul>${sh.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul></div>` : ""}
@@ -573,10 +574,11 @@ function viewActivity() {
 
 /* ---------------- Impact ---------------- */
 function viewImpact() {
-  const head = `<header class="vh"><div class="vh-row"><span class="eyebrow">Community</span>${accountBtn()}</div><h1 class="large-title">Impact</h1><p class="vh-sub">Food your community passed on instead of throwing out.</p></header>`;
+  const head = `<header class="vh"><div class="vh-row"><span class="eyebrow">Your activity</span>${accountBtn()}</div><h1 class="large-title">Your impact</h1><p class="vh-sub">Food you've shared or picked up through completed handoffs.</p></header>`;
+  if (!S.user) return head + `<div class="empty"><div class="empty-icon">${icon("leaf", 26)}</div><h2>Sign in to see your impact</h2><button type="button" class="btn btn-primary btn-sm" data-action="open-signin">Sign in</button></div>`;
   const how = `<p class="section-label">What counts</p><div class="group" style="padding:14px 16px"><ul class="how">
     <li>${icon("check", 20)}<span>A swap or giveaway counts once both people confirm the handoff.</span></li>
-    <li>${icon("check", 20)}<span>Donations and compost drop-offs count when a member reports dropping food off.</span></li>
+    <li>${icon("check", 20)}<span>Only donations and compost drop-offs you report are counted here.</span></li>
     <li>${icon("check", 20)}<span>Suggestions and scheduled pickups don't count until they happen.</span></li></ul></div>`;
   if (!S.impact && !S.impactError) return head + `<div class="stats"><div class="skel"></div><div class="skel"></div></div>`;
   if (!S.impact) return head + `<div class="empty"><div class="empty-icon">${icon("alert", 26)}</div><h2>Impact isn't available right now</h2><p>${esc(S.impactError)}</p><button type="button" class="btn btn-secondary btn-sm" data-action="reload-impact">Try again</button></div>` + how;
@@ -584,12 +586,12 @@ function viewImpact() {
   const food = q.filter(x => x.action !== "compost"), comp = q.filter(x => x.action === "compost");
   const total = (d.completed_trades || 0) + (d.completed_giveaways || 0) + (d.donations_reported || 0) + (d.compost_reported || 0);
   const row = x => `<div class="qty-row"><span>${esc(itemText(x))}</span>${x.action === "donation" ? "<span>Donated</span>" : ""}</div>`;
-  return head + (total ? "" : `<div class="info">No completed handoffs yet. Every confirmed pickup shows up here.</div>`) +
+  return head + (total ? "" : `<div class="info">No completed handoffs yet. Share or pick up food to get started.</div>`) +
     `<div class="stats">
       <div class="stat lead"><b>${esc(d.completed_trades ?? 0)}</b><span>Swaps completed</span></div>
       <div class="stat"><b>${esc(d.completed_giveaways ?? 0)}</b><span>Giveaways completed</span></div>
-      <div class="stat"><b>${esc(d.donations_reported ?? 0)}</b><span>Donations</span><small>Reported by members</small></div>
-      <div class="stat"><b>${esc(d.compost_reported ?? 0)}</b><span>Compost drop-offs</span><small>Reported by members</small></div></div>
+      <div class="stat"><b>${esc(d.donations_reported ?? 0)}</b><span>Donations</span><small>Reported by you</small></div>
+      <div class="stat"><b>${esc(d.compost_reported ?? 0)}</b><span>Compost drop-offs</span><small>Reported by you</small></div></div>
     ${food.length ? `<p class="section-label">Food passed on</p><div class="group">${food.map(row).join("")}</div>` : ""}
     ${comp.length ? `<p class="section-label">Composted (reported by members)</p><div class="group">${comp.map(row).join("")}</div>` : ""}
     ${d.note ? `<p class="foot" style="margin:0 4px">${esc(d.note)}</p>` : ""}` + how;
@@ -893,7 +895,16 @@ async function refreshActivity(skipRender = false) {
   if (!skipRender) { renderNav(); if (S.tab === "activity" && !userIsTyping()) render(); }
 }
 async function refreshImpact() {
-  try { S.impact = await api("/impact"); S.impactError = ""; } catch (e) { S.impactError = e.message; }
+  const uid = S.user?.id, gen = ++S.impactGen;
+  if (!uid) { S.impact = null; S.impactError = ""; if (S.tab === "impact") render(); return; }
+  try {
+    const result = await api("/impact");
+    if (S.user?.id !== uid || gen !== S.impactGen) return;
+    S.impact = result; S.impactError = "";
+  } catch (e) {
+    if (S.user?.id !== uid || gen !== S.impactGen) return;
+    S.impact = null; S.impactError = e.message;
+  }
   if (S.tab === "impact") render();
 }
 async function checkHealth() {
@@ -1032,10 +1043,11 @@ document.addEventListener("submit", async e => {
     try {
       const r = await post(`/auth/${s ? "signup" : "login"}`, s ? { display_name: name, email, password } : { email, password });
       if (r.email_confirmation_required) return setSheetBody(authBody("login", "", false, "Check your email to confirm your account, then sign in."));
-      S.user = r.user; if (S.photo?.file) S.photo.guestDraft = false;
+      S.impactGen++; S.impact = null; S.impactError = ""; S.user = r.user; if (S.photo?.file) S.photo.guestDraft = false;
       closeSheet(); renderAll(); toast(s ? "Welcome to RePlate." : "You're signed in.");
       if (S.photo?.file && !S.photo.id) uploadSelectedPhoto();
       await load();
+      if (S.tab === "impact") refreshImpact();
       const next = S.pendingAfterAuth; S.pendingAfterAuth = null; if (next) next();
     } catch (er) { setSheetBody(authBody(mode, er.message)); }
   }
@@ -1066,7 +1078,7 @@ document.addEventListener("submit", async e => {
 
 function signedOut() {
   if (!S.fallback?.browse) { routeSeq++; fbSeq++; if (S.fallback) { destroyDMap(); closeSheet(); S.fallback = null; } }
-  S.user = null; S.myListings = []; S.myOffers = []; S.myRequests = []; S.notifications = []; S.activityLoaded = false;
+  S.user = null; S.impactGen++; S.impact = null; S.impactError = ""; S.myListings = []; S.myOffers = []; S.myRequests = []; S.notifications = []; S.activityLoaded = false;
   if (S.editingId || (S.photo && !S.photo.guestDraft) || S.approval || S.reviewing) { resetEditor(false); S.share.step = "compose"; }
   renderAll();
 }

@@ -451,29 +451,32 @@ export declare const useRecordExternalOutcome: <TError = ErrorType<unknown>, TCo
     request?: SecondParameter<typeof customFetch>;
 }, queryClient?: QueryClient) => UseMutationResult<Awaited<ReturnType<typeof recordExternalOutcome>>, TError, RecordExternalOutcomeMutationVariables, TContext>;
 export declare const getGetCommunityImpactUrl: () => string;
+/**
+ * @summary Get the signed-in user's own impact
+ */
 export declare const getCommunityImpact: (options?: Parameters<typeof customFetch>[1]) => Promise<JsonResult>;
 export declare const getGetCommunityImpactQueryKey: () => readonly ["/api/impact"];
-export declare const getGetCommunityImpactQueryOptions: <TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<unknown>>(options?: {
+export declare const getGetCommunityImpactQueryOptions: <TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<void>>(options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
 }) => UseQueryOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
 };
 export type GetCommunityImpactQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityImpact>>>;
-export type GetCommunityImpactQueryError = ErrorType<unknown>;
-export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<unknown>>(options: {
+export type GetCommunityImpactQueryError = ErrorType<void>;
+export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<void>>(options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, Awaited<ReturnType<typeof getCommunityImpact>>>, 'initialData'>;
     request?: SecondParameter<typeof customFetch>;
 }, queryClient?: QueryClient): DefinedUseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
 };
-export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<unknown>>(options?: {
+export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<void>>(options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, Awaited<ReturnType<typeof getCommunityImpact>>>, 'initialData'>;
     request?: SecondParameter<typeof customFetch>;
 }, queryClient?: QueryClient): UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
 };
-export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<unknown>>(options?: {
+export declare function useGetCommunityImpact<TData = Awaited<ReturnType<typeof getCommunityImpact>>, TError = ErrorType<void>>(options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityImpact>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
 }, queryClient?: QueryClient): UseQueryResult<TData, TError> & {

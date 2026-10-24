@@ -486,6 +486,9 @@ export declare const RecordExternalOutcomeBody: zod.ZodObject<{
     confirmed: boolean;
 }>;
 export declare const RecordExternalOutcomeResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
+/**
+ * @summary Get the signed-in user's own impact
+ */
 export declare const GetCommunityImpactResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 /**
  * Returns server health status

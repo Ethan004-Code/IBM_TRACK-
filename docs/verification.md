@@ -70,3 +70,11 @@
 - Browser checks at 390×844 passed for quantity errors, populated input bounds, simulated picker min/max bypass, change-only Clear events surviving a form rerender, printed-date warnings/errors, and no horizontal overflow.
 - Request-sheet browser checks used isolated network fixtures, not real accounts or database writes. Invalid/out-of-window/cleared times made zero POSTs. One valid request used a mocked 201 and verified the exact UTC payload and visible confirmation.
 - The initial browser run overlapped source edits, causing Vite page reloads and resetting the unsaved editor. With source frozen, a 17-second stability check preserved the manual draft through background polling. These were iPhone-size browser checks, not physical iPhone/Safari testing.
+
+## Personal Impact and Share explanation
+
+- Impact is authenticated and server-filtered. Completed, mutually confirmed swaps and giveaways count for both participants; external donation/compost rows count only for their reporter. Unrelated users, pending handoffs, test rows, and recommendations are excluded.
+- Both interfaces show Your impact, a sign-in prompt/button without numbers when signed out, and the exact requested all-zero message. The current interface clears cached results on sign-out/account changes and ignores late or superseded responses.
+- Share explains Bob using the requested wording. Condition no longer offers Opened package. Existing photo review, quantity, date-limit and Clear-event rules remain enforced.
+- Verification: 76 backend regressions and 17 frontend helper/state checks passed, including giver/receiver/outsider fixtures, authenticated scope despite query parameters, anonymous rejection before database snapshot access, late response isolation, and change-only Clear events. API codegen/typechecks and the production build passed.
+- Live preview checks: anonymous GET /api/impact returned 401; API health returned 200. A 390×844 screenshot confirmed the signed-out Impact screen has the correct title, prompt and Sign in button, with no totals or horizontal overflow. Signed-in count/empty states were verified with isolated in-memory API and frontend state fixtures, not a new live-account browser run. No database changes or real handoffs were created.

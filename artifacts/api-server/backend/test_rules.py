@@ -215,8 +215,8 @@ class RuleTests(unittest.TestCase):
 
     def test_mixed_units_not_summed(self):
         g.store["impact_records"] = [
-            dict(id="r1", identity="r1", action="donation", item_name="Rice", quantity=1, unit="bag", listing_id="one"),
-            dict(id="r2", identity="r2", action="donation", item_name="Rice", quantity=2, unit="kg", listing_id="two"),
+            dict(id="r1", identity="r1", user_id="a", confirmation_type="user_reported", action="donation", item_name="Rice", quantity=1, unit="bag", listing_id="one"),
+            dict(id="r2", identity="r2", user_id="a", confirmation_type="user_reported", action="donation", item_name="Rice", quantity=2, unit="kg", listing_id="two"),
         ]
         result = self.invoke("get_impact").get_json()
         self.assertEqual(len(result["quantities"]), 2)

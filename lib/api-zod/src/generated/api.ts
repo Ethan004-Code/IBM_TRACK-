@@ -289,6 +289,9 @@ export const RecordExternalOutcomeBody = zod.object({
 export const RecordExternalOutcomeResponse = zod.record(zod.string(), zod.unknown())
 
 
+/**
+ * @summary Get the signed-in user's own impact
+ */
 export const GetCommunityImpactResponse = zod.record(zod.string(), zod.unknown())
 
 

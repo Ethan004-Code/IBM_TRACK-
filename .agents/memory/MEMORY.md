@@ -3,3 +3,4 @@
 - [Preview session testing](preview-session-testing.md) — use clean native sign-in; mixed manually injected and partitioned cookies can falsely suggest broken auth.
 - [Donation map reuse](donation-map-reuse.md) — reuse the existing donation-map implementation when exposing it through the new interface.
 - [Count-only listings](count-only-listings.md) — units belong in names; preserve historical meanings and keep Best by warnings consistent with discovery.
+- [Personal impact](personal-impact.md) — private totals include both sides of completed handoffs but only the current user's external drop-off reports.

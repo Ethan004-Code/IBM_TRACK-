@@ -511,7 +511,46 @@ def install_rules(app, legacy):
 
     @replace("get_impact")
     def get_impact():
-        records = [r for r in g.store["impact_records"] if not r.get("is_test") and r.get("identity") and r.get("quantity") is not None]
+        from werkzeug.exceptions import Unauthorized
+        if not getattr(g, "user", None):
+            raise Unauthorized("Sign in to see your impact")
+        uid = g.user["id"]
+        # Ledger rows identify the giver. Resolve completed handoffs as well so
+        # recipients see their impact without exposing unrelated users' rows.
+        trades = {
+            row["id"]: {row["listing_id"], row["match_id"]}
+            for row in g.store["trade_offers"]
+            if row.get("status") == "completed"
+            and uid in {p["user_id"] for p in row.get("participants", [])}
+            and {p["user_id"] for p in row.get("participants", [])}
+                <= set(row.get("completed_by", []))
+        }
+        giveaways = {
+            (row["id"], row["listing_id"])
+            for row in g.store["food_requests"]
+            if row.get("status") == "completed"
+            and uid in {row.get("owner_id"), row.get("requester_id")}
+            and {row.get("owner_id"), row.get("requester_id")}
+                <= set(row.get("completed_by", []))
+        }
+        records = []
+        for r in g.store["impact_records"]:
+            identity = r.get("identity")
+            if r.get("is_test") or not isinstance(identity, str) or not identity or r.get("quantity") is None:
+                continue
+            action = r.get("action")
+            if action in {"donation", "compost"}:
+                belongs = r.get("user_id") == uid and r.get("confirmation_type") == "user_reported"
+            elif action == "exchange":
+                belongs = (r.get("listing_id") in trades.get(r.get("offer_id"), set())
+                           and r.get("confirmation_type") == "both_participants")
+            elif action == "giveaway":
+                belongs = ((identity.split(":", 1)[0], r.get("listing_id")) in giveaways
+                           and r.get("confirmation_type") == "both_participants")
+            else:
+                belongs = False
+            if belongs:
+                records.append(r)
         totals = defaultdict(float)
         for r in records:
             totals[(r["action"], r["item_name"], r["unit"])] += r["quantity"]
@@ -520,7 +559,7 @@ def install_rules(app, legacy):
                        donations_reported=events("donation"), compost_reported=events("compost"),
                        quantities=[dict(action=a, name=n, unit=u, quantity=q) for (a, n, u), q in sorted(totals.items())],
                        records=[{key: r.get(key) for key in ("action", "item_name", "quantity", "unit", "confirmation_type", "created_at")} for r in records],
-                       note="Peer handoffs confirmed by both participants. Donations and composting are user-reported. Unlike units are never summed; no waste, money or emissions estimates.")
+                       note="Your completed handoffs as giver or receiver, confirmed by both participants. Only donation and compost reports you made are included. Unlike units are never summed; no waste, money or emissions estimates.")
 
     from destinations import install_destinations
     install_destinations(app, legacy, persist, ledger)

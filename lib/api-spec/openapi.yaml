@@ -271,12 +271,15 @@ paths:
   /impact:
     get:
       operationId: getCommunityImpact
+      summary: Get the signed-in user's own impact
       responses:
         "200":
-          description: Confirmed handoffs and quantities grouped by food/unit; compost separate
+          description: Only this user's completed handoffs as giver or receiver and their own donation/compost reports; server-filtered by authenticated user ID
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonResult" }
+        "401":
+          description: Sign in to see your impact
   /healthz:
     get:
       operationId: healthCheck

@@ -9,6 +9,13 @@ import runtime
 
 
 class PublicDonationTests(unittest.TestCase):
+    def test_personal_impact_requires_authentication_before_snapshot_access(self):
+        self.app.add_url_rule("/api/impact", "get_impact", lambda: jsonify(completed_trades=99))
+        response = self.app.test_client().get("/api/impact")
+        self.assertEqual(response.status_code, 401)
+        self.auth.assert_called_once()
+        self.db.rpc.assert_not_called()
+
     def setUp(self):
         self.app = Flask(__name__)
         self.auth = MagicMock(side_effect=lambda: (jsonify(error="Sign in required."), 401))

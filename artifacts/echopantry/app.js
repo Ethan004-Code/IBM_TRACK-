@@ -79,14 +79,31 @@ async function load() {
 }
 
 /* Impact */
+let impactGeneration = 0;
 async function refreshImpact() {
+  const uid = sessionUser?.id, generation = ++impactGeneration, strip = $("#impact");
+  $("#impact-detail").innerHTML = "";
+  strip.setAttribute("aria-label", "Your impact");
+  const title = `<div class="impact-title"><span class="impact-icon" aria-hidden="true"></span><div><strong>Your impact</strong><small>Your completed handoffs and reported drop-offs</small></div></div>`;
+  if (!uid) {
+    strip.innerHTML = title + `<p>Sign in to see your impact</p><button class="button primary" id="impact-signin" type="button">Sign in</button>`;
+    $("#impact-signin").onclick = () => openAuth();
+    return;
+  }
+  strip.innerHTML = title + `<p>Loading your impact…</p>`;
   try { const d = await api("/impact");
+    if (sessionUser?.id !== uid || generation !== impactGeneration) return;
+    strip.innerHTML = title + `<div><strong id="trades-done">0</strong><small>completed swaps</small></div><div><strong id="giveaways-done">0</strong><small>completed giveaways</small></div><div><strong id="donated-items">0</strong><small>donations you reported</small></div><div><strong id="compost-items">0</strong><small>compost drop-offs you reported</small></div>`;
     $("#trades-done").textContent = d.completed_trades ?? 0; $("#giveaways-done").textContent = d.completed_giveaways ?? 0;
     $("#donated-items").textContent = d.donations_reported ?? 0; $("#compost-items").textContent = d.compost_reported ?? 0;
     const q = d.quantities || [], food = q.filter(x => x.action !== "compost"), comp = q.filter(x => x.action === "compost");
     const li = arr => arr.map(x => `<li>${esc(x.quantity)} ${esc(foldName(x.name, x.unit, x.quantity))} <small>(${esc(String(x.action).replaceAll("_"," "))}${x.action === "donation" || x.action === "compost" ? ", user-reported" : ""})</small></li>`).join("");
-    $("#impact-detail").innerHTML = `${food.length ? `<strong>Food shared for people</strong><ul>${li(food)}</ul>` : ""}${comp.length ? `<strong>Composted (separate, user-reported)</strong><ul>${li(comp)}</ul>` : ""}${d.note ? `<p>${esc(d.note)}</p>` : ""}`;
-  } catch { $("#impact-detail").textContent = "Impact ledger unavailable right now."; }
+    const empty = ![d.completed_trades, d.completed_giveaways, d.donations_reported, d.compost_reported].some(x => x > 0);
+    $("#impact-detail").innerHTML = `${empty ? "<p>No completed handoffs yet. Share or pick up food to get started.</p>" : ""}${food.length ? `<strong>Food shared for people</strong><ul>${li(food)}</ul>` : ""}${comp.length ? `<strong>Composted (separate, user-reported)</strong><ul>${li(comp)}</ul>` : ""}${d.note ? `<p>${esc(d.note)}</p>` : ""}`;
+  } catch {
+    if (sessionUser?.id !== uid || generation !== impactGeneration) return;
+    strip.innerHTML = title + `<p>Your impact is unavailable right now.</p>`;
+  }
 }
 
 /* Activity */
@@ -315,6 +332,11 @@ $("#interpret-button").onclick = async () => {
 
 /* Listing review + publish (Bob approval required before every new or updated listing) */
 const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 1024 * 1024;
+{
+  const help = document.createElement("p");
+  help.textContent = "Bob is RePlate's AI helper. It drafts your listing and checks it before it goes live.";
+  $("#listing-form-title").insertAdjacentElement("afterend", help);
+}
 let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen = 0, reviewing = false, publishing = false, editingId = null, reviewState = {kind:"idle"};
 form.wanted_food.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(form.wanted_quantity);
 { const rf = $("#request-form"); rf.item.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(rf.quantity); rf.addEventListener("focusin", () => applyPickupLimits(rf)); applyPickupLimits(rf); }
@@ -504,7 +526,7 @@ async function refreshNotifications() {
 /* Auth */
 function setAuthMode(mode) { authMode = mode; const s = mode === "signup"; $("#auth-title").textContent = s ? "Join RePlate" : "Welcome back"; $("#auth-subtitle").textContent = s ? "Create an account to share and find food." : "Sign in to list food and manage your exchanges."; $("#display-name-field").hidden = !s; $("#auth-form [name=display_name]").required = s; $("#auth-form [name=password]").autocomplete = s ? "new-password" : "current-password"; $("#auth-submit").textContent = s ? "Create account" : "Sign in"; $("#login-tab").classList.toggle("selected", !s); $("#signup-tab").classList.toggle("selected", s); }
 function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); if (editingId || (photo && !photo.guestDraft) || approval || reviewing) resetEditor(false); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
-function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; renderReview(); $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); }
+function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; renderReview(); $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); refreshImpact(); }
 function openAuth(mode = "login") { setAuthMode(mode); $("#auth-notice").hidden = true; $("#auth-dialog").showModal(); }
 $("#auth-button").onclick = () => openAuth(); $("#listing-auth-button").onclick = () => openAuth(); $("#request-auth-button").onclick = () => openAuth(); $("#close-auth").onclick = () => $("#auth-dialog").close(); $("#login-tab").onclick = () => setAuthMode("login"); $("#signup-tab").onclick = () => setAuthMode("signup");
 $("#auth-form").addEventListener("submit", async e => {
