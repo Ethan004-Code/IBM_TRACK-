@@ -11,7 +11,8 @@
 
 ## Still blocked / not verified
 
-- The supplied Supabase configuration was rejected during client initialization. No keys or URL values were displayed. Correct the existing project's URL and API keys through Secrets.
+- The corrected Supabase API configuration now connects to the existing project. Read-only checks confirmed that the existing app tables are present and empty, while the new revision table and snapshot function are missing. No keys or URL values were displayed.
+- The supplied Postgres connection uses an IPv6-only direct endpoint. This workspace rejected the address family before authentication, so the database password has not yet been verified. Use the existing project's IPv4-compatible **Session pooler** connection from Supabase's Connect dialog for the migration.
 - No schema changes were applied to the external Supabase project. Apply `backend/supabase_schema.sql` if needed, followed by the additive `backend/interview_migration.sql`. Review and back up existing data first. These scripts do not delete listings or replace the database.
 - The new snapshot and atomic commit SQL functions are implemented but have **not been executed against the real Supabase database**. A genuine competing-acceptance transaction test remains pending.
 - Real signup/login, database persistence, and a two-account browser handoff walkthrough remain pending. The signed-in UI was not visually verified.

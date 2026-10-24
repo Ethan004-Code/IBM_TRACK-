@@ -1,1 +1,1 @@
-- [Product constraints](product-constraints.md) — preserve the imported website and interview's Flask/Supabase/IBM Bob requirements.
+- [External Supabase maintenance](supabase-maintenance.md) — use the dashboard's IPv4 Session pooler for schema work; direct IPv6 connectivity failed here.
