@@ -7,6 +7,8 @@ Community surplus-food exchange and giveaway website, corrected against the user
 - `pnpm --filter @workspace/api-server run dev` — run the Python Flask API (managed workflow provides PORT)
 - `pnpm --filter @workspace/echopantry run dev` — original HTML/CSS/JavaScript website served by Vite
 - `cd artifacts/api-server/backend && python3 -m unittest -v test_rules` — isolated rule regression tests
+- `python3 artifacts/api-server/backend/check_migration.py` — tests the SQL in a disposable local Postgres cluster, never the app database
+- `EP_VERIFY_EXTERNAL=1 python3 artifacts/api-server/backend/check_supabase.py` — explicitly authorized live checks; creates and removes temporary users/rows, never prints credentials
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -51,6 +53,7 @@ The uploaded interview is the acceptance source. The whole community is eligible
 - Never execute unrestricted Bob tools or pass Supabase/session credentials to its subprocess.
 - Managed API workflow now runs Flask; production uses Gunicorn. Do not revive the unused scaffold Express server.
 - Table writes must use the request transaction wrapper, not ad hoc direct Supabase writes, for reservation/ledger correctness.
+- Session cookies deliberately use Secure, HttpOnly, SameSite=None and Partitioned to work inside the cross-site preview iframe. Keep the same-origin write checks; changing back to Lax can lose iframe sessions.
 
 ## Pointers
 

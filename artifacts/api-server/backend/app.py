@@ -294,7 +294,7 @@ def auth_signup():
             "email_confirmation_required": session is None})
         if session:
             response.set_cookie("echo_access_token", session.access_token, httponly=True,
-                secure=os.getenv("COOKIE_SECURE", "true").lower() == "true", samesite="Lax",
+                secure=True, samesite="None", partitioned=True,
                 max_age=session.expires_in)
         return response, 201
     except Exception:
@@ -318,7 +318,7 @@ def auth_login():
         response = jsonify({"user": {"id": str(auth_user.id), "email": profile.get("email", auth_user.email),
             "display_name": profile.get("display_name") or "Community member"}})
         response.set_cookie("echo_access_token", session.access_token, httponly=True,
-                secure=os.getenv("COOKIE_SECURE", "true").lower() == "true", samesite="Lax",
+                secure=True, samesite="None", partitioned=True,
             max_age=session.expires_in)
         return response, 200
     except Exception:
@@ -333,8 +333,8 @@ def auth_me():
 @app.post("/api/auth/logout")
 def auth_logout():
     response = jsonify({"status": "signed_out"})
-    response.delete_cookie("echo_access_token", httponly=True, samesite="Lax",
-        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true")
+    response.delete_cookie("echo_access_token", httponly=True, samesite="None",
+        secure=True, partitioned=True)
     return response
 
 
@@ -342,8 +342,8 @@ def auth_logout():
 def soft_delete_account():
     supabase.table("user_profiles").update({"deleted_at": now_utc().isoformat()}).eq("id", g.user["id"]).execute()
     response = jsonify({"status": "deleted", "message": "Account deactivated. Trade and rating history is retained."})
-    response.delete_cookie("echo_access_token", httponly=True, samesite="Lax",
-        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true")
+    response.delete_cookie("echo_access_token", httponly=True, samesite="None",
+        secure=True, partitioned=True)
     return response
 
 

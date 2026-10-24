@@ -218,8 +218,10 @@ def install_rules(app, legacy):
         storage = "unavailable"
         if db:
             try:
-                db.rpc("echopantry_snapshot").execute()
+                snapshot = db.rpc("echopantry_snapshot").execute().data
                 storage = "supabase"
+                if snapshot.get("schema_version", 0) < 2:
+                    setup.append("Re-run the corrected backend/interview_migration.sql to update transaction functions. Existing records are preserved.")
             except Exception:
                 setup.append("Supabase connection or schema unavailable. Apply the supplied schema and interview migration to the existing project.")
         else:

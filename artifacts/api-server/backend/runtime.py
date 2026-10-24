@@ -66,6 +66,7 @@ def install_runtime(app, legacy):
         try:
             snapshot = legacy["supabase"].rpc("echopantry_snapshot").execute().data
             g.revision = snapshot["revision"]
+            g.schema_version = snapshot.get("schema_version", 0)
             g.store = {table: snapshot[table] for table in TABLES}
             g.active_users = set(snapshot["active_users"])
         except Exception:
@@ -74,6 +75,11 @@ def install_runtime(app, legacy):
     @app.after_request
     def commit_request(response):
         if getattr(g, "writes", None) and response.status_code < 400:
+            if getattr(g, "schema_version", 0) < 2:
+                response = jsonify(error="Re-run the corrected backend/interview_migration.sql to update transaction functions. Nothing was saved.")
+                response.status_code = 503
+                response.headers["Cache-Control"] = "no-store"
+                return response
             try:
                 legacy["supabase"].rpc("echopantry_commit", {
                     "p_revision": g.revision,

@@ -59,6 +59,7 @@ create or replace function public.echopantry_snapshot() returns jsonb
 language sql stable security invoker set search_path = public
 as $$
  select jsonb_build_object(
+   'schema_version', 2,
    'revision', (select revision from echopantry_revision where id=1),
    'active_users', coalesce((select jsonb_agg(id) from user_profiles where deleted_at is null),'[]'),
    'listings', coalesce((select jsonb_agg(to_jsonb(t)) from listings t),'[]'),
@@ -82,7 +83,7 @@ declare
   current_revision bigint;
   entry jsonb;
   row_data jsonb;
-  table_name text;
+  target_table text;
   columns_sql text;
   updates_sql text;
 begin
@@ -94,9 +95,9 @@ begin
     raise exception 'EP_INVALID_TRANSACTION';
   end if;
   for entry in select value from jsonb_array_elements(p_writes) loop
-    table_name := entry->>'table';
+    target_table := entry->>'table';
     row_data := entry->'row';
-    if table_name not in ('listings','trade_offers','food_requests','notifications',
+    if target_table not in ('listings','trade_offers','food_requests','notifications',
                           'ratings','reports','user_blocks','impact_records') then
       raise exception 'EP_INVALID_TABLE';
     end if;
@@ -105,13 +106,13 @@ begin
            string_agg(format('%I=excluded.%I',key,key),',' order by key)
       into columns_sql,updates_sql
       from jsonb_object_keys(row_data) as key
-      where exists (select 1 from information_schema.columns
-                    where table_schema='public' and columns.table_name=echopantry_commit.table_name
-                    and column_name=key);
+      where exists (select 1 from information_schema.columns c
+                    where c.table_schema='public' and c.table_name=target_table
+                    and c.column_name=key);
     if columns_sql is null then raise exception 'EP_INVALID_ROW'; end if;
     execute format(
       'insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I,$1) on conflict(id) do update set %s',
-      table_name,columns_sql,columns_sql,table_name,updates_sql) using row_data;
+      target_table,columns_sql,columns_sql,target_table,updates_sql) using row_data;
   end loop;
   update echopantry_revision set revision=revision+1 where id=1 returning revision into current_revision;
   return current_revision;
