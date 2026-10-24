@@ -1,0 +1,4 @@
+Flask
+Flask-Cors
+supabase>=2.4,<3
+ibm-watsonx-ai>=1.4,<2
