@@ -5,6 +5,44 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type FoodRequestInputUnit = typeof FoodRequestInputUnit[keyof typeof FoodRequestInputUnit];
+export declare const FoodRequestInputUnit: {
+    readonly each: "each";
+    readonly g: "g";
+    readonly kg: "kg";
+    readonly oz: "oz";
+    readonly lb: "lb";
+    readonly bag: "bag";
+    readonly can: "can";
+    readonly box: "box";
+    readonly bottle: "bottle";
+    readonly package: "package";
+};
+export interface FoodRequestInput {
+    /**
+       * @minItems 1
+       * @maxItems 1
+       * @items.minLength 1
+       */
+    items: string[];
+    /**
+       * Omit or send null for any amount. A provided quantity is a whole count from 1 to 99.
+       * @minimum 1
+       * @maximum 99
+       * @nullable
+       */
+    quantity?: number | null;
+    unit?: FoodRequestInputUnit;
+    /**
+       * @minLength 1
+       * @maxLength 100
+       */
+    location: string;
+    pickup_start: string;
+    pickup_end: string;
+    deadline: string;
+    timezone: string;
+}
 export interface PhotoUpload {
     photo: Blob | File;
 }

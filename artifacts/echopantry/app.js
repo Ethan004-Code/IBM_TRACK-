@@ -146,7 +146,7 @@ function renderActivity() {
   const offerHtml = myOffers.map(offerCard).join("");
   const gHtml = giveaways.map(giveawayCard).join("");
   $("#my-handoffs").innerHTML = offerHtml + gHtml || `<p class="muted">No handoffs yet.</p>`;
-  $("#my-requests").innerHTML = standalone.length ? standalone.map(r => `<div class="record"><strong>${esc(r.quantity ?? "")} ${esc(foldName((r.items || []).join(", ") || r.item || "", r.unit, r.quantity))}</strong>${status(r.status || "open")}<p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fmt(r.deadline))}</p></div>`).join("") : `<p class="muted">No requests posted.</p>`;
+  $("#my-requests").innerHTML = standalone.length ? standalone.map(r => `<div class="record"><strong>${esc(r.quantity ?? "")} ${esc(foldName((r.items || []).join(", ") || r.item || "", r.unit, r.quantity))}${r.quantity == null ? " · Any amount" : ""}</strong>${status(r.status || "open")}<p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fmt(r.deadline))}</p></div>`).join("") : `<p class="muted">No requests posted.</p>`;
 }
 function uid(x) { return x?.user_id || x?.id || x; }
 function offerCard(o) {
@@ -382,7 +382,7 @@ let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen =
 form.wanted_food.placeholder = ITEM_PLACEHOLDER;
 form.wanted_quantity?.closest("label")?.remove();
 { const help = document.createElement("p"); help.textContent = "No return quantity required. Swaps exchange the full amounts shown in both listings, including every item in a bundle."; form.wanted_food.closest("label").insertAdjacentElement("afterend", help); }
-{ const rf = $("#request-form"); rf.item.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(rf.quantity); rf.addEventListener("focusin", () => applyPickupLimits(rf)); applyPickupLimits(rf); }
+{ const rf = $("#request-form"); rf.item.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(rf.quantity); rf.quantity.required = false; rf.quantity.placeholder = "Any amount"; rf.quantity.closest("label").firstChild.textContent = "Quantity (optional; blank means any amount)"; rf.addEventListener("focusin", () => applyPickupLimits(rf)); applyPickupLimits(rf); }
 function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function photoUrl(p) { return p.local_url || p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
 
@@ -557,9 +557,9 @@ $("#cancel-edit").onclick = () => { resetEditor(true); notice.hidden = true; sho
 /* Standalone request */
 $("#request-form").addEventListener("submit", async e => {
   e.preventDefault(); if (!sessionUser) return openAuth(); const f = e.currentTarget, m = $("#request-notice");
-  const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value);
+  const q = f.quantity.value.trim() ? parseQty(f.quantity.value) : null, ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value);
   if (!f.item.value.trim()) return setNotice(m, "Enter the food you need.");
-  const qe = qtyError(f.quantity.value, "quantity"); if (qe) return setNotice(m, qe);
+  const qe = f.quantity.validity?.badInput ? "Enter a whole quantity from 1 to 99, or leave it blank for any amount." : f.quantity.value.trim() ? qtyError(f.quantity.value, "quantity") : ""; if (qe) return setNotice(m, qe);
   if (spotError(f.location.value)) return setNotice(m, spotError(f.location.value));
   if (!ps || !pe || !dl) return setNotice(m, "Choose a pickup window and needed-by time.");
   const we = windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true, labels:{deadline:"Needed by"}}); if (we.length) return setNotice(m, we.join(" "));

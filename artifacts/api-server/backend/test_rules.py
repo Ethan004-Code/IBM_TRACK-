@@ -35,7 +35,8 @@ class RuleTests(unittest.TestCase):
         self.app = Flask(__name__)
         def save(table, row):
             g.writes[(table, row["id"])] = copy.deepcopy(row)
-        rules.install_rules(self.app, {"save_row": save, "create_notification": lambda *args: None, "supabase": None})
+        self.notifications = MagicMock()
+        rules.install_rules(self.app, {"save_row": save, "create_notification": self.notifications, "supabase": None})
         self.ctx = self.app.test_request_context()
         self.ctx.push()
         g.user = dict(id="a", name="Alice")

@@ -114,6 +114,39 @@ class RequestDateTests(unittest.TestCase):
     setUp = fixtures.RuleTests.setUp
     tearDown = fixtures.RuleTests.tearDown
     invoke = fixtures.RuleTests.invoke
+
+    def test_optional_request_amounts_and_existing_listing_matches(self):
+        valid = dict(items=["onions"], location=self.a["location"],
+                     pickup_start=self.a["pickup_start"], pickup_end=self.a["pickup_end"],
+                     deadline=self.a["deadline"])
+        for extra, expected_match in (({}, True), (dict(quantity=None), True),
+                                      (dict(quantity=1), True), (dict(quantity=6), False)):
+            self.notifications.reset_mock()
+            row = self.invoke("create_request", uid="b", data=dict(valid, **extra))[0].get_json()["request"]
+            self.assertEqual(row["quantity"], extra.get("quantity"))
+            self.assertEqual(row["quantities"], {} if row["quantity"] is None else {"onions": row["quantity"]})
+            self.assertEqual(self.notifications.called, expected_match)
+            if expected_match:
+                self.assertEqual(self.notifications.call_args.args[0:2], ("b", "request_match"))
+        for amount in (0, -1, 100, 1.5, True, "", "2"):
+            with self.subTest(amount=amount), self.assertRaises(BadRequest):
+                self.invoke("create_request", uid="b", data=dict(valid, quantity=amount))
+
+    def test_new_listing_notifies_any_amount_requests_but_not_unmet_minimums(self):
+        valid = dict(items=["onions"], location=self.a["location"],
+                     pickup_start=self.a["pickup_start"], pickup_end=self.a["pickup_end"],
+                     deadline=self.a["deadline"])
+        self.invoke("create_request", uid="b", data=valid)
+        self.invoke("create_request", uid="c", data=dict(valid, quantity=6))
+        self.notifications.reset_mock()
+        data = dict(self.a, listing_type="single", fresh=True, storage_confirmed=True, allergens="None")
+        with patch.object(listing_review, "consume_approval", return_value={
+            "photo_id": self.a["photo_id"], "bob_review_id": self.a["bob_review_id"],
+        }):
+            self.invoke("create_listing", uid="a", data=data)
+        self.assertEqual(self.notifications.call_count, 1)
+        self.assertEqual(self.notifications.call_args.args[0:2], ("b", "request_match"))
+
     def test_giveaway_request_must_be_entirely_within_listing(self):
         self.a["mode"] = "giveaway"
         start, end = rules.instant(self.a["pickup_start"]), rules.instant(self.a["pickup_end"])

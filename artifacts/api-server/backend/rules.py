@@ -169,7 +169,7 @@ def fulfills(listing, wanted, *, require_quantity=True):
     wanted_name, unit = wanted.get("wanted_food", ""), wanted.get("wanted_unit")
     amount = wanted.get("wanted_quantity")
     return any(counted_food(i["name"], i.get("unit")) == counted_food(wanted_name, unit)
-               and (not require_quantity or (amount is not None and i["quantity"] >= amount))
+               and (not require_quantity or amount is None or i["quantity"] >= amount)
                for i in listing.get("item_details", []))
 
 
@@ -305,7 +305,7 @@ def install_rules(app, legacy):
                    **fields, **approval,
                    rating=None, trades=0, status="open", created_at=now().isoformat())
         persist("listings", row)
-        # Standalone request notifications require full quantity/unit/window fit.
+        # Standalone requests can ask for any amount or a minimum quantity.
         for r in g.store["food_requests"]:
             if r.get("status") != "open" or not r.get("user_id") or r["user_id"] == row["user_id"]:
                 continue
@@ -490,16 +490,16 @@ def install_rules(app, legacy):
         data = request.get_json(silent=True) or {}
         names = data.get("items")
         names = [names] if isinstance(names, str) else names
-        if not isinstance(names, list) or len(names) != 1 or "," in names[0]:
+        if not isinstance(names, list) or len(names) != 1 or not isinstance(names[0], str) or "," in names[0]:
             raise BadRequest("Choose exactly one wanted ingredient for a standalone request.")
         name = text(names[0], "one wanted ingredient")
-        amount = quantity(data.get("quantity"))
+        amount = quantity(data["quantity"]) if data.get("quantity") is not None else None
         unit = data.get("unit") or "each"
         if unit not in UNITS:
             raise BadRequest("Choose an explicit quantity unit.")
         start, end, due = window(data)
         row = dict(id=str(uuid4()), user_id=g.user["id"], name=g.user["name"],
-                   items=[name], quantity=amount, unit=unit, quantities={name: amount},
+                   items=[name], quantity=amount, unit=unit, quantities={name: amount} if amount is not None else {},
                    location=pickup_spot(data.get("location")), pickup_start=start, pickup_end=end,
                    deadline=due, status="open", created_at=now().isoformat())
         persist("food_requests", row)

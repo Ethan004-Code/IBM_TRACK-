@@ -9,6 +9,7 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
   const nodes = new Map();
   const listeners = new Map();
   const document = {
+    body: {style: {}},
     querySelector(sel) {
       if (sel === "#review-panel") return null;
       if (!nodes.has(sel)) nodes.set(sel, {
@@ -32,10 +33,13 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
     globalThis.ui = { S, viewImpact, refreshImpact, conditionOptions,
       viewCompose, viewReview, onBind, readDraft, signedOut,
       spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard, actions,
-      wantedText, offerBlock };
+      wantedText, offerBlock, requestCard, openRequestForm };
   `, context);
   return { ...context.ui, nodes, dispatch(type, target) {
     for (const handler of listeners.get(type) || []) handler({type, target});
+  }, submit(form) {
+    return Promise.all((listeners.get("submit") || []).map(handler =>
+      handler({target: form, preventDefault() {}})));
   } };
 }
 
@@ -129,6 +133,71 @@ test("swap acceptance shows full actual amounts for both participants", () => {
   assert.match(app.offerBlock(offer), /you give 3 onions, you get 2 cans of beans/);
   app.S.user = {id: "b"};
   assert.match(app.offerBlock(offer), /you give 2 cans of beans, you get 3 onions/);
+});
+
+test("Getting includes swaps with the same handoff controls as Sharing", () => {
+  const app = ui();
+  app.S.user = {id: "a"};
+  app.S.activityLoaded = true;
+  app.S.myOffers = [{id: "swap", status: "pending",
+    participants: [{user_id: "a", name: "Alice"}, {user_id: "b", name: "Bob"}],
+    give_items: [{name: "onions", quantity: 3, unit: "each"}],
+    receive_items: [{name: "cans of beans", quantity: 2, unit: "each"}],
+    location: "Library", pickup_start: new Date(Date.now() + 3600000).toISOString(),
+    pickup_end: new Date(Date.now() + 7200000).toISOString()}];
+  app.S.actSeg = "getting";
+  let html = app.viewActivity();
+  assert.match(html, /Your swaps/);
+  assert.match(html, /you give 3 onions, you get 2 cans of beans/);
+  assert.match(html, /data-action="offer-respond"/);
+  assert.doesNotMatch(html, /Nothing requested yet/);
+  app.S.actSeg = "sharing";
+  html = app.viewActivity();
+  assert.match(html, /you give 3 onions, you get 2 cans of beans/);
+  assert.match(html, /data-action="offer-respond"/);
+});
+
+test("request form and cards explain optional amounts without inventing counts", () => {
+  const app = ui();
+  app.openRequestForm();
+  const form = app.nodes.get("#sheet").innerHTML;
+  assert.match(form, /Quantity \(optional\)/);
+  assert.match(form, /placeholder="Any amount"/);
+  assert.match(form, /don't reserve food/);
+  assert.match(app.requestCard({items: ["onions"], quantity: null}), /Looking for onions · Any amount/);
+  assert.match(app.requestCard({items: ["onions"], quantity: 3}), /Looking for 3 onions/);
+  assert.doesNotMatch(app.requestCard({items: ["onions"], quantity: 3}), /Any amount/);
+});
+
+test("registered request submit sends null for blank, numbers for specified counts and rejects invalid input", async () => {
+  const sent = [];
+  const app = ui(async (url, options) => {
+    sent.push(JSON.parse(options.body));
+    // Controlled rejection avoids mutating any real data or mounting Activity.
+    return {ok: false, status: 400, json: async () => ({error: "Fixture response"})};
+  });
+  const now = Date.now(), local = t => limits.toLocalInput(new Date(t));
+  const form = {id: "request-form", item: {value: "onions"}, quantity: {value: ""},
+    location: {value: "Library steps"}, pickup_start: {value: local(now + 3600000)},
+    pickup_end: {value: local(now + 7200000)}, deadline: {value: local(now + 10800000)},
+    querySelector() {return {disabled: false};}};
+  await app.submit(form);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].quantity, null);
+  form.quantity.value = "3";
+  await app.submit(form);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].quantity, 3);
+  for (const value of ["0", "100", "1.5", "-2"]) {
+    form.quantity.value = value;
+    await app.submit(form);
+    assert.equal(sent.length, 2);
+    assert.match(app.nodes.get("#rq-err").innerHTML, /99/);
+  }
+  form.quantity.value = "";
+  form.quantity.validity = {badInput: true};
+  await app.submit(form);
+  assert.equal(sent.length, 2);
 });
 
 test("allergen chips require a choice and keep old free-text declarations untouched", () => {

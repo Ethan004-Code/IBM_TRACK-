@@ -8,6 +8,33 @@
 import * as zod from 'zod';
 
 
+/**
+ * @summary Post a standalone request for one food
+ */
+
+export const postFoodRequestBodyItemsMax = 1;
+
+export const postFoodRequestBodyQuantityMax = 99;
+
+export const postFoodRequestBodyUnitDefault = `each`;
+export const postFoodRequestBodyLocationMax = 100;
+
+
+
+export const PostFoodRequestBody = zod.object({
+  "items": zod.array(zod.string().min(1)).min(1).max(postFoodRequestBodyItemsMax),
+  "quantity": zod.number().int().min(1).max(postFoodRequestBodyQuantityMax).nullish().describe('Omit or send null for any amount. A provided quantity is a whole count from 1 to 99.'),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(postFoodRequestBodyUnitDefault),
+  "location": zod.string().min(1).max(postFoodRequestBodyLocationMax),
+  "pickup_start": zod.coerce.date(),
+  "pickup_end": zod.coerce.date(),
+  "deadline": zod.coerce.date(),
+  "timezone": zod.string()
+})
+
+export const PostFoodRequestResponse = zod.record(zod.string(), zod.unknown())
+
+
 export const GetServiceStatusResponse = zod.record(zod.string(), zod.unknown())
 
 

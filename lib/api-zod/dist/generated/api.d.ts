@@ -6,6 +6,42 @@
  * OpenAPI spec version: 0.1.0
  */
 import * as zod from 'zod';
+/**
+ * @summary Post a standalone request for one food
+ */
+export declare const postFoodRequestBodyItemsMax = 1;
+export declare const postFoodRequestBodyQuantityMax = 99;
+export declare const postFoodRequestBodyUnitDefault = "each";
+export declare const postFoodRequestBodyLocationMax = 100;
+export declare const PostFoodRequestBody: zod.ZodObject<{
+    items: zod.ZodArray<zod.ZodString, "many">;
+    quantity: zod.ZodOptional<zod.ZodNullable<zod.ZodNumber>>;
+    unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
+    location: zod.ZodString;
+    pickup_start: zod.ZodDate;
+    pickup_end: zod.ZodDate;
+    deadline: zod.ZodDate;
+    timezone: zod.ZodString;
+}, "strip", zod.ZodTypeAny, {
+    items: string[];
+    unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
+    quantity?: number | null | undefined;
+}, {
+    items: string[];
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
+    quantity?: number | null | undefined;
+    unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
+}>;
+export declare const PostFoodRequestResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const GetServiceStatusResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const GetListingsQueryParams: zod.ZodObject<{
     mine: zod.ZodOptional<zod.ZodBoolean>;
@@ -36,16 +72,16 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
         printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
@@ -67,23 +103,23 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;
@@ -93,22 +129,22 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
     allergen_other?: string | undefined;
 }, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;
@@ -177,16 +213,16 @@ export declare const ReviewListingBody: zod.ZodObject<{
         printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
@@ -208,23 +244,23 @@ export declare const ReviewListingBody: zod.ZodObject<{
     allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;
@@ -234,22 +270,22 @@ export declare const ReviewListingBody: zod.ZodObject<{
     allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
     allergen_other?: string | undefined;
 }, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;
@@ -289,16 +325,16 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
         printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
@@ -320,23 +356,23 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
+        name: string;
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;
@@ -346,22 +382,22 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
     allergen_other?: string | undefined;
 }, {
+    location: string;
+    pickup_start: Date;
+    pickup_end: Date;
+    deadline: Date;
+    timezone: string;
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
-        name: string;
         quantity: number;
+        name: string;
         category: "produce" | "shelf_stable";
         unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
         printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
-    location: string;
-    pickup_start: Date;
-    pickup_end: Date;
-    deadline: Date;
-    timezone: string;
     fresh: boolean;
     storage_confirmed: boolean;
     allergens: string;

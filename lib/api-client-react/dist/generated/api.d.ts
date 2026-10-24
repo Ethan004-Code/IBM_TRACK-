@@ -1,10 +1,33 @@
 import type { DataTag, DefinedInitialDataOptions, DefinedUseQueryResult, QueryClient, QueryKey, UndefinedInitialDataOptions, UseMutationOptions, UseMutationResult, UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import type { DecisionInput, DonationRouteInput, GetListingsParams, HealthStatus, InterpretationInput, JsonResult, ListingChange, ListingDraft, ListingInput, OfferInput, OutcomeInput, PhotoUpload } from './api.schemas';
+import type { DecisionInput, DonationRouteInput, FoodRequestInput, GetListingsParams, HealthStatus, InterpretationInput, JsonResult, ListingChange, ListingDraft, ListingInput, OfferInput, OutcomeInput, PhotoUpload } from './api.schemas';
 import { customFetch } from '../custom-fetch';
 import type { ErrorType, BodyType } from '../custom-fetch';
 type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+export declare const getPostFoodRequestUrl: () => string;
+/**
+ * @summary Post a standalone request for one food
+ */
+export declare const postFoodRequest: (foodRequestInput: FoodRequestInput, options?: Parameters<typeof customFetch>[1]) => Promise<JsonResult>;
+export declare const getPostFoodRequestMutationKey: () => readonly ["postFoodRequest"];
+export declare const getPostFoodRequestMutationOptions: <TError = ErrorType<unknown>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError, PostFoodRequestMutationVariables, TContext>;
+    request?: SecondParameter<typeof customFetch>;
+}) => UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError, PostFoodRequestMutationVariables, TContext>;
+export type PostFoodRequestMutationResult = NonNullable<Awaited<ReturnType<typeof postFoodRequest>>>;
+export type PostFoodRequestMutationBody = BodyType<FoodRequestInput>;
+export type PostFoodRequestMutationError = ErrorType<unknown>;
+export type PostFoodRequestMutationVariables = {
+    data: BodyType<FoodRequestInput>;
+};
+/**
+* @summary Post a standalone request for one food
+*/
+export declare const usePostFoodRequest: <TError = ErrorType<unknown>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError, PostFoodRequestMutationVariables, TContext>;
+    request?: SecondParameter<typeof customFetch>;
+}, queryClient?: QueryClient) => UseMutationResult<Awaited<ReturnType<typeof postFoodRequest>>, TError, PostFoodRequestMutationVariables, TContext>;
 export declare const getGetServiceStatusUrl: () => string;
 export declare const getServiceStatus: (options?: Parameters<typeof customFetch>[1]) => Promise<JsonResult>;
 export declare const getGetServiceStatusQueryKey: () => readonly ["/api/health"];

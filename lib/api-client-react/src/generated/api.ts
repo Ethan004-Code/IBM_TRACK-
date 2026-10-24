@@ -27,6 +27,7 @@ import type {
 import type {
   DecisionInput,
   DonationRouteInput,
+  FoodRequestInput,
   GetListingsParams,
   HealthStatus,
   InterpretationInput,
@@ -65,6 +66,94 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getPostFoodRequestUrl = () => {
+
+
+
+
+  return `/api/requests`
+}
+
+/**
+ * @summary Post a standalone request for one food
+ */
+export const postFoodRequest = async (foodRequestInput: FoodRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<JsonResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JsonResult>(getPostFoodRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(foodRequestInput)
+  }
+);}
+
+
+
+
+
+export const getPostFoodRequestMutationKey = () => ['postFoodRequest'] as const;
+
+export const getPostFoodRequestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError,PostFoodRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError,PostFoodRequestMutationVariables, TContext> => {
+
+const mutationKey = getPostFoodRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postFoodRequest>>, PostFoodRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postFoodRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostFoodRequestMutationResult = NonNullable<Awaited<ReturnType<typeof postFoodRequest>>>
+    export type PostFoodRequestMutationBody = BodyType<FoodRequestInput>
+    export type PostFoodRequestMutationError = ErrorType<unknown>
+    export type PostFoodRequestMutationVariables = {data: BodyType<FoodRequestInput>}
+
+    /**
+ * @summary Post a standalone request for one food
+ */
+export const usePostFoodRequest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postFoodRequest>>, TError,PostFoodRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postFoodRequest>>,
+        TError,
+        PostFoodRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostFoodRequestMutationOptions(options), queryClient);
+    }
 
 export const getGetServiceStatusUrl = () => {
 

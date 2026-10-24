@@ -11,6 +11,21 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /requests:
+    post:
+      operationId: postFoodRequest
+      summary: Post a standalone request for one food
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FoodRequestInput" }
+      responses:
+        "201":
+          description: Saved request; matches notify the requester without reserving food
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
   /health:
     get:
       operationId: getServiceStatus
@@ -295,6 +310,22 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    FoodRequestInput:
+      type: object
+      required: [items, location, pickup_start, pickup_end, deadline, timezone]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items: { type: string, minLength: 1 }
+        quantity: { type: ["integer", "null"], minimum: 1, maximum: 99, description: "Omit or send null for any amount. A provided quantity is a whole count from 1 to 99." }
+        unit: { type: string, default: each, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
+        location: { type: string, minLength: 1, maxLength: 100 }
+        pickup_start: { type: string, format: date-time }
+        pickup_end: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        timezone: { type: string }
     PhotoUpload:
       type: object
       required: [photo]

@@ -549,7 +549,7 @@ function myListingCard(l) {
 }
 function requestCard(r) {
   const name = (r.items || []).join(", ") || r.item || "";
-  return `<section class="acard"><div class="acard-head"><div class="grow"><h3>Looking for ${esc(itemText({ name, quantity: r.quantity, unit: r.unit }).replace(/^./, c => c.toLowerCase()))}</h3><p>${esc(r.location)} · ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fullDate(r.deadline))}</p></div><span class="badge ${r.status === "open" || !r.status ? "b-muted" : "b-ok"}">${esc(cap(String(r.status || "open").replaceAll("_", " ")))}</span></div></section>`;
+  return `<section class="acard"><div class="acard-head"><div class="grow"><h3>Looking for ${esc(itemText({ name, quantity: r.quantity, unit: r.unit }).replace(/^./, c => c.toLowerCase()))}${r.quantity == null ? " · Any amount" : ""}</h3><p>${esc(r.location)} · ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fullDate(r.deadline))}</p></div><span class="badge ${r.status === "open" || !r.status ? "b-muted" : "b-ok"}">${esc(cap(String(r.status || "open").replaceAll("_", " ")))}</span></div></section>`;
 }
 function viewActivity() {
   const head = `<header class="vh"><div class="vh-row"><span></span>${accountBtn()}</div><h1 class="large-title">Activity</h1></header>`;
@@ -571,8 +571,9 @@ function viewActivity() {
   } else {
     const a = asked.map(r => `<section class="acard">${giveawayBlock(r).replace('<div class="handoff">', '<div class="handoff" style="border-top:0;padding-top:0">')}</section>`).join("");
     const reqs = standalone.map(requestCard).join("");
-    body = `${a ? `<p class="section-label">Food you asked for</p>${a}` : ""}${reqs ? `<p class="section-label">Your requests</p>${reqs}` : ""}
-      ${!a && !reqs ? `<div class="empty"><div class="empty-icon">${icon("discover", 26)}</div><h3>Nothing requested yet</h3><p>Ask for a giveaway you see nearby, or post a request for something specific.</p></div>` : ""}
+    const swaps = S.myOffers.map(o => `<section class="acard">${offerBlock(o)}</section>`).join("");
+    body = `${swaps ? `<p class="section-label">Your swaps</p>${swaps}` : ""}${a ? `<p class="section-label">Food you asked for</p>${a}` : ""}${reqs ? `<p class="section-label">Your requests</p>${reqs}` : ""}
+      ${!swaps && !a && !reqs ? `<div class="empty"><div class="empty-icon">${icon("discover", 26)}</div><h3>Nothing requested yet</h3><p>Ask for a giveaway you see nearby, or post a request for something specific.</p></div>` : ""}
       <button type="button" class="btn btn-secondary btn-block" data-action="open-request">${icon("plus", 18)}Post a request for food</button>`;
   }
   return head + updates + seg + body;
@@ -687,10 +688,10 @@ function giveawayBody(l, err = "", busy = false, vals = {}) {
 }
 function openRequestForm() {
   const lim = pickupLimits(), rng = `min="${lim.minInput}" max="${lim.maxInput}"`;
-  openSheet("Post a food request", `<p class="foot" style="margin:0 4px">One food, with an amount and the times you can pick up. We'll notify you when someone nearby lists it.</p>
+  openSheet("Post a food request", `<p class="foot" style="margin:0 4px">Choose one food and the times you can pick up. Leave quantity blank for any amount, or enter how many you need. Matches notify you; they don't reserve food.</p>
     <form id="request-form" class="sheet-body" novalidate><div class="group">
       <div class="row"><label for="rq-item">Food</label><input id="rq-item" name="item" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
-      <div class="row"><label for="rq-qty">Quantity</label><input id="rq-qty" name="quantity" ${QTY_ATTRS} placeholder="1"></div></div>
+      <div class="row"><label for="rq-qty">Quantity (optional)</label><input id="rq-qty" name="quantity" ${QTY_ATTRS} placeholder="Any amount"></div></div>
     <div class="group">
       ${spotField("rq-zone", "", 'name="location"')}
       <div class="row"><label for="rq-from">Pickup from</label><input id="rq-from" name="pickup_start" type="datetime-local" ${rng}></div>
@@ -1096,8 +1097,8 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "request-form") {
     e.preventDefault();
-    const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value), errEl = $("#rq-err");
-    const err = !f.item.value.trim() ? "Add the food you're looking for." : qtyError(f.quantity.value) || spotError(f.location.value)
+    const q = f.quantity.value.trim() ? parseQty(f.quantity.value) : null, ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value), errEl = $("#rq-err");
+    const err = !f.item.value.trim() ? "Add the food you're looking for." : (f.quantity.validity?.badInput ? "Enter a whole quantity from 1 to 99, or leave it blank for any amount." : f.quantity.value.trim() ? qtyError(f.quantity.value) : "") || spotError(f.location.value)
       || (!f.location.value || !ps || !pe || !dl ? "Choose a pickup spot, a pickup window and a needed-by time."
       : windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true, labels: { deadline: "Needed by" } }).join(" "));
     if (err) { errEl.innerHTML = sheetError(err); return; }

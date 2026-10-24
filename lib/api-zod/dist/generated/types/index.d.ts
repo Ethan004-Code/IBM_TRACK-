@@ -12,6 +12,8 @@ export * from './foodItem';
 export * from './foodItemCategory';
 export * from './foodItemDateType';
 export * from './foodItemUnit';
+export * from './foodRequestInput';
+export * from './foodRequestInputUnit';
 export * from './getListingsParams';
 export * from './healthStatus';
 export * from './interpretationInput';
