@@ -1018,8 +1018,17 @@ document.addEventListener("click", e => {
 function onBind(e) {
   const el = e.target, path = el.dataset?.bind; if (!path) return;
   const val = el.type === "checkbox" ? el.checked : el.value;
-  const keys = path.split("."); let o = S; keys.slice(0, -1).forEach(k => { o = o[k]; }); o[keys.at(-1)] = val;
+  const keys = path.split("."); let o = S; keys.slice(0, -1).forEach(k => { o = o[k]; });
+  const previous = o[keys.at(-1)];
+  o[keys.at(-1)] = val;
   if (!path.startsWith("draft.")) return;
+  // Safari/autofill may emit change without input; handle both, but don't
+  // discard an approval or replace its button for the same committed value.
+  if (path === "draft.deadline") S.dtTouched = true;
+  if (previous === val || (el.type !== "checkbox" && String(previous ?? "") === String(val))) {
+    if (el.dataset.rerender && e.type === "change") render();
+    return;
+  }
   if (path === "draft.allergen_other") {
     S.draft.allergens = allergenValue(parseAllergens(S.draft.allergens).selected, val);
   }
@@ -1049,7 +1058,7 @@ function updateSpotCounter(e) {
 }
 document.addEventListener("input", updateSpotCounter);
 document.addEventListener("change", updateSpotCounter);
-document.addEventListener("change", e => { if (e.target.type === "checkbox" || e.target.tagName === "SELECT" || e.target.dataset?.rerender || e.target.dataset?.spotCounter || /^(date|time|datetime-local|number)$/.test(e.target.type)) onBind(e); });
+document.addEventListener("change", onBind);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
 
 document.addEventListener("submit", async e => {

@@ -6,3 +6,4 @@
 - [Personal impact](personal-impact.md) — private totals include both sides of completed handoffs but only the current user's external drop-off reports.
 - [Free-text pickup spots](free-text-pickups.md) — preserve location text; requests use the listing's spot and show the requester’s actual time and name.
 - [Allergen declarations](allergen-policy.md) — require chips, allow users to override the Whole produce default, and preserve existing allergen text.
+- [Form event testing](form-event-testing.md) — a filled field can still have stale draft state; test delegated change events, not just binding helpers.

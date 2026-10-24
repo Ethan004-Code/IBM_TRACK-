@@ -7,6 +7,7 @@ import * as allergens from "./allergens.js";
 
 function ui(fetchImpl = async () => { throw Error("Unexpected network request"); }) {
   const nodes = new Map();
+  const listeners = new Map();
   const document = {
     querySelector(sel) {
       if (sel === "#review-panel") return null;
@@ -16,7 +17,10 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
       });
       return nodes.get(sel);
     },
-    addEventListener() {},
+    addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    },
   };
   const context = vm.createContext({
     ...limits, ...allergens, document, fetch: fetchImpl, Date, Intl, URL,
@@ -29,7 +33,9 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
       viewCompose, viewReview, onBind, readDraft, signedOut,
       spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard, actions };
   `, context);
-  return { ...context.ui, nodes };
+  return { ...context.ui, nodes, dispatch(type, target) {
+    for (const handler of listeners.get(type) || []) handler({type, target});
+  } };
 }
 
 test("signed out impact has sign-in button, no totals, and makes no impact request", async () => {
@@ -139,6 +145,45 @@ test("change-only Clear updates state and does not refill the cleared deadline",
   change("draft.day", "", "date");
   assert.equal(app.S.draft.day, "");
   assert.match(app.readDraft().miss.join(" "), /pickup day/);
+});
+
+test("registered change handler synchronizes food names and times before Bob validation", () => {
+  const app = ui();
+  const change = (path, value, type = "text") => app.dispatch("change",
+    {id: "", type, tagName: "INPUT", value, dataset: {bind: path}});
+  assert.ok(app.readDraft().miss.some(m => m.includes("add a food name")));
+  change("draft.items.0.name", "onions");
+  assert.equal(app.S.draft.items[0].name, "onions");
+  assert.ok(!app.readDraft().miss.some(m => m.includes("add a food name")));
+  const day = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  change("draft.day", day, "date");
+  change("draft.from", "15:00", "time");
+  change("draft.until", "14:00", "time");
+  assert.match(app.readDraft().miss.join(" "), /Pickup end needs to be after/);
+  change("draft.until", "17:00", "time");
+  assert.doesNotMatch(app.readDraft().miss.join(" "), /Pickup end needs to be after/);
+  assert.equal(app.readDraft().payload.item_details[0].name, "onions");
+  assert.equal(app.readDraft().payload.pickup_end, new Date(`${day}T17:00`).toISOString());
+  change("draft.wanted_food", "cans of beans");
+  assert.equal(app.readDraft().payload.wanted_food, "cans of beans");
+  change("draft.items.0.name", "");
+  assert.ok(app.readDraft().miss.some(m => m.includes("add a food name")));
+});
+
+test("duplicate input/change events do not invalidate unchanged Bob approval", () => {
+  const app = ui();
+  const target = {id: "", type: "text", tagName: "INPUT", value: "onions",
+    dataset: {bind: "draft.items.0.name"}};
+  app.dispatch("input", target);
+  const approved = {id: "approved-current"};
+  app.S.approval = approved;
+  const gen = app.S.reviewGen;
+  app.dispatch("change", target);
+  assert.equal(app.S.approval, approved);
+  assert.equal(app.S.reviewGen, gen);
+  app.dispatch("change", {...target, value: "rice"});
+  assert.equal(app.S.approval, null);
+  assert.ok(app.S.reviewGen > gen);
 });
 
 test("pickup fields are free text with exact note, placeholder, limit and counter", () => {
