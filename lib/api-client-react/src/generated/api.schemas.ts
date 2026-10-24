@@ -5,16 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface JsonResult { [key: string]: unknown }
-
-export interface InterpretationInput {
-  /**
-     * @minLength 1
-     * @maxLength 1200
-     */
-  text: string;
-  timezone: string;
+export interface PhotoUpload {
+  photo: Blob | File;
 }
+
+export type ListingDraftMode = typeof ListingDraftMode[keyof typeof ListingDraftMode];
+
+
+export const ListingDraftMode = {
+  exchange: 'exchange',
+  giveaway: 'giveaway',
+} as const;
+
+export type ListingDraftListingType = typeof ListingDraftListingType[keyof typeof ListingDraftListingType];
+
+
+export const ListingDraftListingType = {
+  single: 'single',
+  bundle: 'bundle',
+} as const;
 
 export type FoodItemUnit = typeof FoodItemUnit[keyof typeof FoodItemUnit];
 
@@ -62,32 +71,17 @@ export interface FoodItem {
   quantity: number;
   unit: FoodItemUnit;
   category: FoodItemCategory;
-  unopened?: boolean;
+  /** @nullable */
+  unopened?: boolean | null;
   /** @nullable */
   printed_date?: string | null;
   /** @nullable */
   date_type?: FoodItemDateType;
 }
 
-export type ListingInputMode = typeof ListingInputMode[keyof typeof ListingInputMode];
-
-
-export const ListingInputMode = {
-  exchange: 'exchange',
-  giveaway: 'giveaway',
-} as const;
-
-export type ListingInputListingType = typeof ListingInputListingType[keyof typeof ListingInputListingType];
-
-
-export const ListingInputListingType = {
-  single: 'single',
-  bundle: 'bundle',
-} as const;
-
-export interface ListingInput {
-  mode: ListingInputMode;
-  listing_type: ListingInputListingType;
+export interface ListingDraft {
+  mode: ListingDraftMode;
+  listing_type: ListingDraftListingType;
   /**
      * @minItems 1
      * @maxItems 5
@@ -100,10 +94,34 @@ export interface ListingInput {
   pickup_start: string;
   pickup_end: string;
   deadline: string;
-  timezone?: string;
+  timezone: string;
   fresh: boolean;
   storage_confirmed: boolean;
-  allergens?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  allergens: string;
+  photo_id: string;
+}
+
+export type ListingInput = ListingDraft & {
+  approval_id: string;
+};
+
+export type ListingChange = ListingInput | {
+  inedible_confirmed: true;
+};
+
+export interface JsonResult { [key: string]: unknown }
+
+export interface InterpretationInput {
+  /**
+     * @minLength 1
+     * @maxLength 1200
+     */
+  text: string;
+  timezone: string;
 }
 
 export interface OfferInput {

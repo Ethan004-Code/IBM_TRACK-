@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "python3 backend/app.py",
     "build": "python3 -m compileall -q backend",
-    "start": "gunicorn --chdir backend --bind 0.0.0.0:$PORT --workers 2 --timeout 70 app:app",
+    "start": "gunicorn --chdir backend --bind 0.0.0.0:$PORT --workers 2 --timeout 110 app:app",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

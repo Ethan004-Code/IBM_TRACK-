@@ -95,6 +95,10 @@ def eligible(item, tz="America/Los_Angeles"):
 def available(listing):
     if listing.get("status") != "open" or listing.get("inedible_confirmed"):
         return False
+    if not listing.get("photo_id") or not listing.get("bob_review_id"):
+        # Retain legacy rows for their owners, but require re-review before
+        # publicly offering food under the new mandatory photo policy.
+        return False
     try:
         if instant(listing["deadline"]) <= now() or instant(listing["pickup_end"]) <= now():
             return False
@@ -220,8 +224,8 @@ def install_rules(app, legacy):
             try:
                 snapshot = db.rpc("echopantry_snapshot").execute().data
                 storage = "supabase"
-                if snapshot.get("schema_version", 0) < 2:
-                    setup.append("Re-run the corrected backend/interview_migration.sql to update transaction functions. Existing records are preserved.")
+                if snapshot.get("schema_version", 0) < 3:
+                    setup.append("Apply the updated backend/interview_migration.sql to enable required photo and Bob approvals. Existing records are preserved.")
             except Exception:
                 setup.append("Supabase connection or schema unavailable. Apply the supplied schema and interview migration to the existing project.")
         else:
@@ -249,42 +253,13 @@ def install_rules(app, legacy):
 
     @replace("create_listing")
     def create_listing():
+        from listing_review import validated_fields, consume_approval
         data = request.get_json(silent=True) or {}
-        mode, size = data.get("mode"), data.get("listing_type")
-        if mode not in {"exchange", "giveaway"} or size not in {"single", "bundle"}:
-            raise BadRequest("Choose Exchange or Giveaway and a listing size.")
-        if data.get("fresh") is not True or data.get("storage_confirmed") is not True:
-            raise BadRequest("Confirm acceptable condition and appropriate storage.")
-        tz = data.get("timezone", "America/Los_Angeles")
-        try:
-            ZoneInfo(tz)
-        except Exception:
-            raise BadRequest("Choose a valid local timezone.")
-        raw = data.get("item_details")
-        if not isinstance(raw, list) or not 1 <= len(raw) <= (1 if size == "single" else 5):
-            raise BadRequest("List one item or a bundle of up to five items.")
-        items = [eligible(i, tz) for i in raw]
-        if len({norm(i["name"]) for i in items}) != len(items):
-            raise BadRequest("Combine duplicate food names into one item.")
-        start, end, due = window(data)
-        wanted, wanted_qty, wanted_unit = None, None, None
-        if mode == "exchange":
-            wanted = text(data.get("wanted_food"), "one wanted food")
-            if "," in wanted:
-                raise BadRequest("Choose only one wanted food per exchange listing.")
-            wanted_qty = quantity(data.get("wanted_quantity"))
-            wanted_unit = data.get("wanted_unit")
-            if wanted_unit not in UNITS:
-                raise BadRequest("Choose the wanted food unit.")
-        row = dict(id=str(uuid4()), user_id=g.user["id"], name=g.user["name"],
-                   mode=mode, listing_type=size, items=[i["name"] for i in items],
-                   quantities={i["name"]: i["quantity"] for i in items}, item_details=items,
-                   wants=[wanted] if wanted else [], wanted_food=wanted, wanted_quantity=wanted_qty,
-                   wanted_unit=wanted_unit, deadline=due, best_by=None,
-                   pickup_start=start, pickup_end=end, timezone=tz,
-                   location=zone(data.get("location")), availability=f"{start} – {end}",
-                   allergens=str(data.get("allergens") or "Not specified")[:200],
-                   eligibility_confirmed=True, storage_confirmed=True,
+        fields = validated_fields(data)
+        listing_id = str(uuid4())
+        approval = consume_approval(data, fields, listing_id, persist)
+        row = dict(id=listing_id, user_id=g.user["id"], name=g.user["name"],
+                   **fields, **approval,
                    rating=None, trades=0, status="open", created_at=now().isoformat())
         persist("listings", row)
         # Standalone request notifications require full quantity/unit/window fit.
@@ -307,15 +282,20 @@ def install_rules(app, legacy):
         if row["status"] not in {"open", "expired"}:
             raise Conflict("Only an unreserved, unresolved listing can change.")
         data = request.get_json(silent=True) or {}
+        if request.method == "PATCH" and data.get("approval_id"):
+            from listing_review import validated_fields, consume_approval
+            fields = validated_fields(data)
+            approval = consume_approval(data, fields, listing_id, persist)
+            row.update(**fields, **approval, status="open", reservation_id=None)
+            persist("listings", row)
+            return jsonify(listing=row)
         if request.method == "DELETE":
             row["status"] = "withdrawn"
         elif data.get("inedible_confirmed") is True:
             row["inedible_confirmed"] = True
             row["status"] = "withdrawn"
-        elif data.get("mode") == "giveaway" and available(row):
-            row.update(mode="giveaway", wants=[], wanted_food=None, wanted_quantity=None, wanted_unit=None)
         else:
-            raise BadRequest("Choose an explicit giveaway switch or withdrawal.")
+            raise BadRequest("Changed listing details, including a giveaway switch, require a new Bob/photo review.")
         persist("listings", row)
         return jsonify(listing=row)
 
@@ -397,7 +377,7 @@ def install_rules(app, legacy):
                 snapshot = row.get("item_details") if giveaway else row["give_items" if index == 0 else "receive_items"]
                 if snapshot != listing["item_details"]:
                     raise Conflict("Food contents changed. Create a new offer.")
-            if not giveaway and (not fulfills(involved[0], involved[1]) or not fulfills(involved[1], involved[0]) or not overlap(*involved)):
+            if not giveaway and (any(l["mode"] != "exchange" for l in involved) or not fulfills(involved[0], involved[1]) or not fulfills(involved[1], involved[0]) or not overlap(*involved)):
                 raise Conflict("This exchange no longer satisfies matching rules.")
             row["accepted_by"] = sorted(set(row.get("accepted_by", [])) | {uid})
             if giveaway or set(row["accepted_by"]) == members:
@@ -498,3 +478,7 @@ def install_rules(app, legacy):
     install_destinations(app, legacy, persist, ledger)
     from bob import install_bob
     install_bob(app)
+    from photos import install_photos
+    from listing_review import install_review
+    install_photos(app, persist)
+    install_review(app, persist)

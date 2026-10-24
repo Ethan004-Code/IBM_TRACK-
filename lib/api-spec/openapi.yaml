@@ -44,6 +44,84 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonResult" }
+  /listing-photos:
+    post:
+      operationId: uploadListingPhoto
+      summary: Upload an authenticated owner's private JPG, PNG or WebP photo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/PhotoUpload" }
+      responses:
+        "201":
+          description: Sanitized private photo ID and owner preview URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listing-photos/{photoId}:
+    parameters:
+      - { name: photoId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getListingPhoto
+      responses:
+        "200":
+          description: Owner preview, or a photo attached to a publicly available listing
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+    delete:
+      operationId: deleteUnpostedListingPhoto
+      responses:
+        "200":
+          description: Owner-only deletion of an unposted photo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings/review:
+    post:
+      operationId: reviewListing
+      summary: Require complete fields and real Bob image approval; never publishes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingDraft" }
+      responses:
+        "200":
+          description: Owner-bound single-use approval valid for these exact fields/photo for 15 minutes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+        "422":
+          description: Rejected or uncertain photo; publishing remains blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: updateReviewedListing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingChange" }
+      responses:
+        "200":
+          description: Updated listing; changed fields require a fresh single-use approval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+    delete:
+      operationId: withdrawListing
+      responses:
+        "200":
+          description: Owner withdrew an unreserved listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
   /interpret-listing:
     post:
       operationId: interpretListing
@@ -167,6 +245,18 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    PhotoUpload:
+      type: object
+      required: [photo]
+      properties:
+        photo: { type: string, format: binary }
+    ListingChange:
+      oneOf:
+        - { $ref: "#/components/schemas/ListingInput" }
+        - type: object
+          required: [inedible_confirmed]
+          properties:
+            inedible_confirmed: { type: boolean, enum: [true] }
     JsonResult:
       type: object
       additionalProperties: true
@@ -184,12 +274,19 @@ components:
         quantity: { type: number, exclusiveMinimum: 0, maximum: 999 }
         unit: { type: string, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
         category: { type: string, enum: [produce, shelf_stable] }
-        unopened: { type: boolean }
+        unopened: { type: [boolean, "null"] }
         printed_date: { type: [string, "null"] }
         date_type: { type: [string, "null"], enum: [best_by, use_by, sell_by, expiration, null] }
     ListingInput:
+      allOf:
+        - { $ref: "#/components/schemas/ListingDraft" }
+        - type: object
+          required: [approval_id]
+          properties:
+            approval_id: { type: string, format: uuid }
+    ListingDraft:
       type: object
-      required: [mode, listing_type, item_details, location, pickup_start, pickup_end, deadline, fresh, storage_confirmed]
+      required: [mode, listing_type, item_details, location, pickup_start, pickup_end, deadline, timezone, fresh, storage_confirmed, allergens, photo_id]
       properties:
         mode: { type: string, enum: [exchange, giveaway] }
         listing_type: { type: string, enum: [single, bundle] }
@@ -208,7 +305,8 @@ components:
         timezone: { type: string }
         fresh: { type: boolean }
         storage_confirmed: { type: boolean }
-        allergens: { type: string }
+        allergens: { type: string, minLength: 1, maxLength: 200 }
+        photo_id: { type: string, format: uuid }
     OfferInput:
       type: object
       required: [listing_id, match_id]

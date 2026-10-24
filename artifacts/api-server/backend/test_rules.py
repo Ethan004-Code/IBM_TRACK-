@@ -18,6 +18,8 @@ def listing(identifier, owner, food="Onions", wants="Rice", mode="exchange", uni
     start = rules.now() + timedelta(hours=1)
     end = start + timedelta(hours=2)
     return dict(id=identifier, user_id=owner, name=owner, items=[food],
+                photo_id="00000000-0000-0000-0000-000000000011",
+                bob_review_id="00000000-0000-0000-0000-000000000012",
                 item_details=[dict(name=food, quantity=amount, unit=unit, category="produce",
                                    unopened=None, printed_date=None, date_type=None)],
                 quantities={food: amount}, wants=[wants], wanted_food=wants,

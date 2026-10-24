@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListingInputListingType = typeof ListingInputListingType[keyof typeof ListingInputListingType];
+export type ListingDraftListingType = typeof ListingDraftListingType[keyof typeof ListingDraftListingType];
 
 
-export const ListingInputListingType = {
+export const ListingDraftListingType = {
   single: 'single',
   bundle: 'bundle',
 } as const;

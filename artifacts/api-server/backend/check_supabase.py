@@ -9,6 +9,8 @@ import json
 import os
 import secrets
 import sys
+import time
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -21,6 +23,11 @@ def main():
     if os.environ.get("EP_VERIFY_EXTERNAL") != "1":
         raise SystemExit("Set EP_VERIFY_EXTERNAL=1 to authorize temporary external verification records.")
     db = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+    if db.rpc("echopantry_snapshot").execute().data.get("schema_version", 0) < 3:
+        raise SystemExit("Apply the updated interview_migration.sql before checking required photo approvals.")
+    photos_dir = Path(os.environ.get("EP_TEST_PHOTOS_DIR", ""))
+    if not os.environ.get("EP_TEST_PHOTOS_DIR") or not all((photos_dir / f"{name}.jpg").is_file() for name in ("onions", "apples", "pears", "rice")):
+        raise SystemExit("Set EP_TEST_PHOTOS_DIR to reviewed test fixtures: onions.jpg, apples.jpg, pears.jpg and rice.jpg. Never bypass the real Bob/photo check.")
     root = "http://localhost:80/api"
     users, sessions = [], {}
     suffix = uuid4().hex[:10]
@@ -31,6 +38,7 @@ def main():
                 pickup_start=start.isoformat(), pickup_end=end.isoformat(), deadline=due.isoformat(),
                 fresh=True, storage_confirmed=True)
     cookies = {}
+    uploaded = []
 
     def check(label, condition):
         if not condition:
@@ -60,12 +68,29 @@ def main():
         return code, json.loads(payload or "{}")
 
     def make_listing(actor, food, wants=None, category="produce", unit="each"):
+        boundary = "ep-" + uuid4().hex
+        image = (photos_dir / (food.split()[0].lower() + ".jpg")).read_bytes()
+        body = (f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="photo.jpg"\r\n'
+                'Content-Type: image/jpeg\r\n\r\n').encode() + image + f"\r\n--{boundary}--\r\n".encode()
+        req = Request(root + "/listing-photos", data=body, method="POST",
+                      headers={"Cookie": cookies[actor], "Content-Type": "multipart/form-data; boundary=" + boundary})
+        with urlopen(req, timeout=45) as response:
+            photo = json.loads(response.read())
+            check("required private food photo uploads", response.status == 201)
+        uploaded.append((sessions[actor], photo["photo_id"]))
         item = dict(name=food, quantity=3, unit=unit, category=category,
                     unopened=True if category == "shelf_stable" else None,
                     printed_date=None, date_type=None)
-        data = dict(base, mode="exchange" if wants else "giveaway", item_details=[item])
+        data = dict(base, mode="exchange" if wants else "giveaway", item_details=[item],
+                    allergens="Unknown", photo_id=photo["photo_id"])
         if wants:
             data.update(wanted_food=wants, wanted_quantity=1, wanted_unit=unit)
+        code, result = call("POST", "/listings/review", actor, data)
+        if code == 429:
+            time.sleep(8)
+            code, result = call("POST", "/listings/review", actor, data)
+        check("real Bob approves exact listing and food photo", code == 200 and result.get("approved") is True)
+        data["approval_id"] = result["approval_id"]
         code, result = call("POST", "/listings", actor, data)
         if code != 201:
             print("Listing write HTTP status:", code, flush=True)
@@ -188,9 +213,14 @@ def main():
                 db.table("trade_offers").delete().in_("listing_id", ids).execute()
                 db.table("listings").delete().in_("id", ids).execute()
             db.table("food_requests").delete().in_("user_id", users).execute()
+            db.table("listing_approvals").delete().in_("user_id", users).execute()
+            db.table("listing_photos").delete().in_("user_id", users).execute()
             db.table("user_profiles").delete().in_("id", users).execute()
             for uid in users:
                 db.auth.admin.delete_user(uid)
+            from photos import object_blob
+            for uid, photo_id in uploaded:
+                object_blob(uid, photo_id).delete()
             print("Temporary users and their verification records removed.", flush=True)
 
 

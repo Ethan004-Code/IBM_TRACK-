@@ -18,7 +18,8 @@ export interface FoodItem {
   quantity: number;
   unit: FoodItemUnit;
   category: FoodItemCategory;
-  unopened?: boolean;
+  /** @nullable */
+  unopened?: boolean | null;
   /** @nullable */
   printed_date?: string | null;
   /** @nullable */

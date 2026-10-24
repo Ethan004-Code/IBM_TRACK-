@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListingInputMode = typeof ListingInputMode[keyof typeof ListingInputMode];
+export type ListingDraftMode = typeof ListingDraftMode[keyof typeof ListingDraftMode];
 
 
-export const ListingInputMode = {
+export const ListingDraftMode = {
   exchange: 'exchange',
   giveaway: 'giveaway',
 } as const;

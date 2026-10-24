@@ -12,7 +12,7 @@ from werkzeug.local import LocalProxy
 from werkzeug.exceptions import HTTPException
 
 TABLES = ("listings", "trade_offers", "food_requests", "notifications",
-          "ratings", "reports", "user_blocks", "impact_records")
+          "ratings", "reports", "user_blocks", "impact_records", "listing_approvals", "listing_photos")
 GLOBALS = ("listings", "offers", "food_requests", "notifications",
            "ratings", "reports", "user_blocks")
 
@@ -37,7 +37,11 @@ def install_runtime(app, legacy):
 
     @app.before_request
     def prepare_request():
+        if request.endpoint == "upload_listing_photo":
+            request.max_content_length = 6 * 1024 * 1024
         g.writes = {}
+        g.new_photo_objects = []
+        g.deleted_photo_objects = []
         g.store = {t: [] for t in TABLES}
         g.active_users = set()
         if not request.path.startswith("/api/") or request.method == "OPTIONS":
@@ -53,7 +57,7 @@ def install_runtime(app, legacy):
             return jsonify(error="Supabase setup is invalid or incomplete. Update the existing project URL and keys."), 503
         if request.endpoint not in {"auth_login", "auth_logout", "auth_signup"}:
             # Public reads may optionally resolve a signed-in user.
-            public = request.endpoint in {"get_listings", "get_impact"}
+            public = request.endpoint in {"get_listings", "get_impact", "listing_photo"}
             token = request.cookies.get("echo_access_token")
             if public and not token:
                 g.user = None
@@ -67,16 +71,24 @@ def install_runtime(app, legacy):
             snapshot = legacy["supabase"].rpc("echopantry_snapshot").execute().data
             g.revision = snapshot["revision"]
             g.schema_version = snapshot.get("schema_version", 0)
-            g.store = {table: snapshot[table] for table in TABLES}
+            g.store = {table: snapshot.get(table, []) for table in TABLES}
             g.active_users = set(snapshot["active_users"])
+            if request.method not in {"GET", "HEAD"} and g.schema_version < 3:
+                return jsonify(error="Apply the updated backend/interview_migration.sql to enable required photo and Bob approvals. Nothing was saved."), 503
         except Exception:
             return jsonify(error="Supabase schema setup is required. Apply backend/supabase_schema.sql, then backend/interview_migration.sql to your existing project."), 503
 
     @app.after_request
     def commit_request(response):
+        def remove_objects(objects):
+            for blob in objects:
+                try:
+                    blob.delete(timeout=15, retry=None)
+                except Exception:
+                    app.logger.warning("Private photo object cleanup could not finish.")
         if getattr(g, "writes", None) and response.status_code < 400:
-            if getattr(g, "schema_version", 0) < 2:
-                response = jsonify(error="Re-run the corrected backend/interview_migration.sql to update transaction functions. Nothing was saved.")
+            if getattr(g, "schema_version", 0) < 3:
+                response = jsonify(error="Apply the updated backend/interview_migration.sql to enable required photo and Bob approvals. Nothing was saved.")
                 response.status_code = 503
                 response.headers["Cache-Control"] = "no-store"
                 return response
@@ -86,6 +98,7 @@ def install_runtime(app, legacy):
                     "p_writes": [{"table": table, "row": row}
                                  for (table, _), row in g.writes.items()],
                 }).execute()
+                remove_objects(g.deleted_photo_objects)
             except Exception as error:
                 if "EP_CONFLICT" in str(error):
                     response = jsonify(error="Availability changed while you were responding. Refresh and review the latest options.")
@@ -93,6 +106,8 @@ def install_runtime(app, legacy):
                 else:
                     response = jsonify(error="The database could not save this action. Nothing from this action was committed.")
                     response.status_code = 503
+        if response.status_code >= 400:
+            remove_objects(getattr(g, "new_photo_objects", []))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"

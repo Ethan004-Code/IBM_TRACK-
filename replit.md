@@ -6,9 +6,9 @@ Community surplus-food exchange and giveaway website, corrected against the user
 
 - `pnpm --filter @workspace/api-server run dev` — run the Python Flask API (managed workflow provides PORT)
 - `pnpm --filter @workspace/echopantry run dev` — original HTML/CSS/JavaScript website served by Vite
-- `cd artifacts/api-server/backend && python3 -m unittest -v test_rules` — isolated rule regression tests
+- `cd artifacts/api-server/backend && python3 -m unittest -v test_rules test_listing_review` — isolated rule, required-review and photo regression tests
 - `python3 artifacts/api-server/backend/check_migration.py` — tests the SQL in a disposable local Postgres cluster, never the app database
-- `EP_VERIFY_EXTERNAL=1 python3 artifacts/api-server/backend/check_supabase.py` — explicitly authorized live checks; creates and removes temporary users/rows, never prints credentials
+- `EP_VERIFY_EXTERNAL=1 EP_TEST_PHOTOS_DIR=/path/to/fixtures python3 artifacts/api-server/backend/check_supabase.py` — authorized live checks using actual onions.jpg, apples.jpg, pears.jpg and rice.jpg photos; creates/removes temporary users, rows and uploads, never bypasses Bob or prints credentials
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -46,6 +46,10 @@ Listings (up to five bundled items), live Bob surplus interpretation with manual
 ## User preferences
 
 The uploaded interview is the acceptance source. The whole community is eligible; this is not a students-only product. IBM Bob must run during interaction, not merely generate code.
+
+- Every listing requires Bob approval and a checked photo before posting. Required fields must be complete before asking Bob. Manual entry never bypasses approval.
+- Edits, including switching to giveaway, require a fresh approval bound to the exact details, owner and sanitized photo. Approvals are single-use and expire after 15 minutes.
+- Older unreviewed rows remain available to their owners for editing but are not publicly available until re-reviewed. Photo/content checks never certify food safety.
 
 ## Gotchas
 

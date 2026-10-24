@@ -86,6 +86,30 @@ def main():
             assert len(snapshot["listings"]) == 1 and snapshot["revision"] == 3
             print("PASS: browser roles denied direct transaction/snapshot access")
             print("PASS: consistent service-role snapshot returns committed revision")
+            approval_id = "00000000-0000-0000-0000-000000000010"
+            approval = dict(id=approval_id, user_id=owner, listing_digest="d" * 64,
+                            photo_id="00000000-0000-0000-0000-000000000011",
+                            photo_sha256="a" * 64, policy="listing-photo-v1",
+                            approved_at="2099-01-01T00:00:00Z", expires_at="2099-01-01T00:15:00Z",
+                            used_listing_id=None)
+            photo = dict(id=approval["photo_id"], user_id=owner, sha256=approval["photo_sha256"],
+                         state="active", created_at=approval["approved_at"])
+            payload = json.dumps([dict(table="listing_photos", row=photo),
+                                  dict(table="listing_approvals", row=approval)])
+            sql(f"set role service_role; select echopantry_commit(3,'{payload}'::jsonb);")
+            approval["used_listing_id"] = lid
+            row.update(photo_id=approval["photo_id"], photo_sha256=approval["photo_sha256"],
+                       bob_review_id=approval_id, bob_reviewed_at=approval["approved_at"])
+            payload = json.dumps([dict(table="listing_approvals", row=approval), dict(table="listings", row=row)])
+            sql(f"set role service_role; select echopantry_commit(4,'{payload}'::jsonb);")
+            assert sql("select used_listing_id from listing_approvals;").stdout.strip() == lid
+            assert sql("select bob_review_id from listings;").stdout.strip() == approval_id
+            assert sql("select has_table_privilege('anon','listing_approvals','SELECT');").stdout.strip() == "f"
+            print("PASS: approval creation, consumption and photo fields commit atomically; receipts are private")
+            duplicate = dict(row, id="00000000-0000-0000-0000-000000000099")
+            payload = json.dumps([dict(table="listings", row=duplicate)])
+            assert sql(f"set role service_role; select echopantry_commit(5,'{payload}'::jsonb);", valid=False).returncode != 0
+            print("PASS: duplicate approval identity cannot publish another listing")
         finally:
             if started:
                 subprocess.run(["pg_ctl", "-D", data, "-m", "immediate", "stop"], env=ENV,

@@ -13,6 +13,10 @@ alter table public.listings
   add column if not exists storage_confirmed boolean default false,
   add column if not exists reservation_id uuid,
   add column if not exists inedible_confirmed boolean default false,
+  add column if not exists photo_id uuid,
+  add column if not exists photo_sha256 text,
+  add column if not exists bob_review_id uuid,
+  add column if not exists bob_reviewed_at timestamptz,
   add column if not exists is_test boolean not null default false;
 alter table public.listings drop constraint if exists listings_status_check;
 alter table public.listings add constraint listings_status_check
@@ -46,6 +50,32 @@ alter table public.impact_records drop constraint if exists impact_records_actio
 alter table public.impact_records add constraint impact_records_action_check
   check (action in ('exchange','giveaway','donation','compost'));
 create unique index if not exists impact_identity_unique on public.impact_records(identity) where identity is not null;
+create table if not exists public.listing_photos (
+  id uuid primary key,
+  user_id uuid not null references public.user_profiles(id),
+  sha256 text not null,
+  state text not null check (state in ('active','deleted')),
+  created_at timestamptz not null
+);
+alter table public.listing_photos enable row level security;
+revoke all on public.listing_photos from anon,authenticated;
+grant select,insert,update,delete on public.listing_photos to service_role;
+create table if not exists public.listing_approvals (
+  id uuid primary key,
+  user_id uuid not null references public.user_profiles(id),
+  listing_digest text not null,
+  photo_id uuid not null,
+  photo_sha256 text not null,
+  policy text not null,
+  approved_at timestamptz not null,
+  expires_at timestamptz not null,
+  used_listing_id uuid,
+  check (expires_at > approved_at)
+);
+alter table public.listing_approvals enable row level security;
+revoke all on public.listing_approvals from anon,authenticated;
+grant select,insert,update,delete on public.listing_approvals to service_role;
+create unique index if not exists listing_review_unique on public.listings(bob_review_id) where bob_review_id is not null;
 create table if not exists public.echopantry_revision (
   id integer primary key check (id=1),
   revision bigint not null default 0
@@ -59,7 +89,7 @@ create or replace function public.echopantry_snapshot() returns jsonb
 language sql stable security invoker set search_path = public
 as $$
  select jsonb_build_object(
-   'schema_version', 2,
+   'schema_version', 3,
    'revision', (select revision from echopantry_revision where id=1),
    'active_users', coalesce((select jsonb_agg(id) from user_profiles where deleted_at is null),'[]'),
    'listings', coalesce((select jsonb_agg(to_jsonb(t)) from listings t),'[]'),
@@ -69,7 +99,9 @@ as $$
    'ratings', coalesce((select jsonb_agg(to_jsonb(t)) from ratings t),'[]'),
    'reports', coalesce((select jsonb_agg(to_jsonb(t)) from reports t),'[]'),
    'user_blocks', coalesce((select jsonb_agg(to_jsonb(t)) from user_blocks t),'[]'),
-   'impact_records', coalesce((select jsonb_agg(to_jsonb(t)) from impact_records t),'[]')
+   'impact_records', coalesce((select jsonb_agg(to_jsonb(t)) from impact_records t),'[]'),
+   'listing_approvals', coalesce((select jsonb_agg(to_jsonb(t)) from listing_approvals t),'[]'),
+   'listing_photos', coalesce((select jsonb_agg(to_jsonb(t)) from listing_photos t),'[]')
  );
 $$;
 
@@ -98,7 +130,7 @@ begin
     target_table := entry->>'table';
     row_data := entry->'row';
     if target_table not in ('listings','trade_offers','food_requests','notifications',
-                          'ratings','reports','user_blocks','impact_records') then
+                          'ratings','reports','user_blocks','impact_records','listing_approvals','listing_photos') then
       raise exception 'EP_INVALID_TABLE';
     end if;
     -- Identifiers are quoted and constrained to existing columns.

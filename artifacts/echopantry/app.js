@@ -1,5 +1,6 @@
 const API = "/api";
 const ZONES = ["Library steps","Community Center","Neighborhood Park","Student Union","Campus Green","Dining Commons"];
+const UNITS = ["each","g","kg","oz","lb","bag","can","box","bottle","package"];
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const $ = s => document.querySelector(s);
 const listingsEl = $("#listings"), form = $("#listing-form"), notice = $("#form-notice"), offerArea = $("#offer-area"), toast = $("#toast");
@@ -10,9 +11,9 @@ function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;",
 async function api(path, options = {}) {
   let res;
   try { res = await fetch(`${API}${path}`, {credentials:"include", headers:{"Content-Type":"application/json"}, ...options}); }
-  catch { throw Error("Cannot reach the EchoPantry server. Check your connection and try again."); }
+  catch (er) { if (er?.name === "AbortError") { const e = Error("The request timed out."); e.timeout = true; throw e; } throw Error("Cannot reach the EchoPantry server. Check your connection and try again."); }
   let data = {}; try { data = await res.json(); } catch {}
-  if (!res.ok) { const e = Error(data.error || `Request failed (${res.status}).`); e.status = res.status; throw e; }
+  if (!res.ok) { const e = Error(data.error || `Request failed (${res.status}).`); e.status = res.status; e.data = data; throw e; }
   return data;
 }
 const post = (p, body = {}) => api(p, {method:"POST", body:JSON.stringify(body)});
@@ -48,7 +49,7 @@ function renderListings() {
   listingsEl.innerHTML = visible.map(l => {
     const items = itemsOf(l), give = l.mode === "giveaway", owner = sessionUser && sessionUser.id === l.user_id;
     const wanted = l.wanted_food ? `${l.wanted_quantity ?? ""} ${l.wanted_unit ?? ""} ${l.wanted_food}`.trim() : (l.wants || []).join(", ");
-    return `<article class="listing-card"><div class="card-art ${give ? "" : "orange"}"><span class="urgency ${give ? "gift-tag" : ""}">${give ? "Free giveaway" : "Exchange"}</span><span class="produce" aria-hidden="true">${art(items)}</span></div><div class="card-body"><div class="owner-row"><span class="owner"><span class="avatar" aria-hidden="true">${esc((l.name || "C").charAt(0).toUpperCase())}</span>${esc(l.name || "Community member")} &middot; ${esc(l.location)}</span><span class="rating">${l.rating ? Number(l.rating).toFixed(1) + " rating" : "New"}</span></div><div class="bundle-label">${items.length > 1 ? `BUNDLE &middot; ${items.length} ITEMS` : "SINGLE ITEM"}</div><div class="chips">${items.map(i => `<span class="chip">${itemText(i)}</span>`).join("")}</div>${!give && wanted ? `<div class="wants-label">HOPING TO FIND</div><div class="chips wants"><span class="chip">${esc(wanted)}</span></div>` : ""}<p class="deadline">Pickup ${esc(windowText(l.pickup_start, l.pickup_end))}</p>${l.allergens ? `<p class="deadline">Allergens: ${esc(l.allergens)}</p>` : ""}<div class="card-bottom"><span class="deadline">Until <strong>${esc(fmt(l.deadline))}</strong></span><button class="swap-button" data-act="${owner ? "manage" : give ? "giveaway" : "exchange"}" data-id="${esc(l.id)}">${owner ? "Next steps" : give ? "Request item" : "Match my listing"}</button></div>${!owner ? `<div class="trust-actions"><button data-report="${esc(l.user_id)}">Report</button><button data-block="${esc(l.user_id)}">Block user</button></div>` : ""}</div></article>`;
+    return `<article class="listing-card"><div class="card-art ${give ? "" : "orange"}">${l.photo_id ? `<img class="card-photo" src="${API}/listing-photos/${encodeURIComponent(l.photo_id)}" alt="Photo of ${esc(items.map(i => i.name || i).join(", "))}" loading="lazy" onerror="this.remove()">` : ""}<span class="urgency ${give ? "gift-tag" : ""}">${give ? "Free giveaway" : "Exchange"}</span><span class="produce" aria-hidden="true">${art(items)}</span></div><div class="card-body"><div class="owner-row"><span class="owner"><span class="avatar" aria-hidden="true">${esc((l.name || "C").charAt(0).toUpperCase())}</span>${esc(l.name || "Community member")} &middot; ${esc(l.location)}</span><span class="rating">${l.rating ? Number(l.rating).toFixed(1) + " rating" : "New"}</span></div><div class="bundle-label">${items.length > 1 ? `BUNDLE &middot; ${items.length} ITEMS` : "SINGLE ITEM"}</div><div class="chips">${items.map(i => `<span class="chip">${itemText(i)}</span>`).join("")}</div>${!give && wanted ? `<div class="wants-label">HOPING TO FIND</div><div class="chips wants"><span class="chip">${esc(wanted)}</span></div>` : ""}<p class="deadline">Pickup ${esc(windowText(l.pickup_start, l.pickup_end))}</p>${l.allergens ? `<p class="deadline">Allergens: ${esc(l.allergens)}</p>` : ""}<div class="card-bottom"><span class="deadline">Until <strong>${esc(fmt(l.deadline))}</strong></span><button class="swap-button" data-act="${owner ? "manage" : give ? "giveaway" : "exchange"}" data-id="${esc(l.id)}">${owner ? "Next steps" : give ? "Request item" : "Match my listing"}</button></div>${!owner ? `<div class="trust-actions"><button data-report="${esc(l.user_id)}">Report</button><button data-block="${esc(l.user_id)}">Block user</button></div>` : ""}</div></article>`;
   }).join("");
 }
 listingsEl.addEventListener("click", async e => {
@@ -93,7 +94,7 @@ async function refreshActivity() {
 function renderActivity() {
   const signed = Boolean(sessionUser); $("#activity-grid").hidden = !signed; $("#activity-guest").hidden = signed;
   if (!signed) { $("#my-requests").innerHTML = `<p class="muted">Sign in to see your requests.</p>`; return; }
-  $("#my-listings").innerHTML = myListings.length ? myListings.map(l => `<div class="record"><strong>${l.mode === "giveaway" ? "Giveaway" : "Exchange"}</strong>${status(l.status)}<p>${itemList(itemsOf(l))}</p><p>${esc(l.location)} &middot; ${esc(windowText(l.pickup_start, l.pickup_end))}</p><div class="row-actions">${["open","expired","withdrawn"].includes(l.status) ? `<button class="mini-btn" data-fallback="${esc(l.id)}">${l.status === "open" ? "Matches and next steps" : "Next steps"}</button>` : ""}${l.status === "open" ? `<button class="mini-btn danger" data-withdraw="${esc(l.id)}">Withdraw</button>` : ""}</div></div>`).join("") : `<p class="muted">You have not listed anything yet.</p>`;
+  $("#my-listings").innerHTML = myListings.length ? myListings.map(l => `<div class="record"><strong>${l.mode === "giveaway" ? "Giveaway" : "Exchange"}</strong>${status(l.status)}<p>${itemList(itemsOf(l))}</p><p>${esc(l.location)} &middot; ${esc(windowText(l.pickup_start, l.pickup_end))}</p><div class="row-actions">${["open","expired","withdrawn"].includes(l.status) ? `<button class="mini-btn" data-fallback="${esc(l.id)}">${l.status === "open" ? "Matches and next steps" : "Next steps"}</button>` : ""}${["open","expired"].includes(l.status) ? `<button class="mini-btn" data-edit="${esc(l.id)}">Edit details</button>` : ""}${l.status === "open" ? `<button class="mini-btn danger" data-withdraw="${esc(l.id)}">Withdraw</button>` : ""}</div></div>`).join("") : `<p class="muted">You have not listed anything yet.</p>`;
   const giveaways = myRequests.filter(r => r.requester_id || r.listing_id && r.owner_id);
   const standalone = myRequests.filter(r => !giveaways.includes(r));
   const offerHtml = myOffers.map(offerCard).join("");
@@ -132,6 +133,7 @@ document.addEventListener("click", async e => {
   const d = b.dataset; b.disabled = true;
   try {
     if (d.fallback) await openFallback(d.fallback);
+    else if (d.edit) { const l = myListings.find(x => x.id === d.edit); if (l) editListing(l); }
     else if (d.withdraw) { if (confirm("Withdraw this open listing?")) await act(() => api(`/listings/${encodeURIComponent(d.withdraw)}`, {method:"DELETE"}), "Listing withdrawn."); await load(); }
     else if (d.offerRespond) { const r = await act(() => post(`/offers/${encodeURIComponent(d.offerRespond)}/respond`, {accept:d.accept === "1"}), d.accept === "1" ? "Your acceptance was recorded." : "Offer declined."); if (r && d.accept === "0") { const o = r.offer || myOffers.find(x => x.id === d.offerRespond); const own = o && (isMine(o.listing_id) ? o.listing_id : isMine(o.match_id) ? o.match_id : null); if (own) openFallback(own); } }
     else if (d.offerCancel) { if (confirm("Cancel this offer?")) await act(() => post(`/offers/${encodeURIComponent(d.offerCancel)}/cancel`), "Offer cancelled."); }
@@ -158,7 +160,7 @@ async function openFallback(id) {
   ${!isInedible ? `<div class="option"><label class="check"><input type="checkbox" id="inedible-check"><span>This food is no longer edible. I understand this withdraws it from edible offers. A passed deadline alone does not mean it is spoiled.</span></label><button class="mini-btn danger" id="inedible-btn">Confirm not edible</button></div>` : ""}
   <p class="muted">Recommendations are not recorded as outcomes. Nothing is donated automatically.</p><button class="mini-btn" id="fb-close">Close</button>`;
   offerArea.querySelectorAll("[data-propose]").forEach(btn => btn.onclick = async () => { const m = matches[btn.dataset.propose]; btn.disabled = true; const r = await act(() => post("/offers", {listing_id:id, match_id:m.listing?.id || m.match_id}), "Offer sent. Both of you must accept."); btn.disabled = false; if (r) offerArea.hidden = true; else openFallback(id); });
-  const sw = $("#fb-giveaway"); if (sw) sw.onclick = async () => { if (!confirm("Switch this listing to a giveaway?")) return; if (await act(() => api(`/listings/${encodeURIComponent(id)}`, {method:"PATCH", body:JSON.stringify({mode:"giveaway"})}), "Listing switched to giveaway.")) { await load(); openFallback(id); } };
+  const sw = $("#fb-giveaway"); if (sw) sw.onclick = () => { const l = myListings.find(x => x.id === id) || listings.find(x => x.id === id); if (!l) return showToast("Could not load this listing's details. Refresh and try again."); offerArea.hidden = true; editListing(l, {mode:"giveaway"}); showToast("Review the giveaway details, check with Bob, then publish."); };
   const ib = $("#inedible-btn"); if (ib) ib.onclick = async () => { if (!$("#inedible-check").checked) return showToast("Tick the confirmation first."); if (await act(() => api(`/listings/${encodeURIComponent(id)}`, {method:"PATCH", body:JSON.stringify({inedible_confirmed:true})}), "Marked as not edible.")) { await load(); openFallback(id); } };
   offerArea.querySelectorAll("[data-outcome]").forEach(btn => btn.onclick = async () => { const cb = offerArea.querySelector(`[data-drop="${CSS.escape(btn.dataset.outcome)}"]`); const fz = offerArea.querySelector(`[data-feasible="${CSS.escape(btn.dataset.outcome)}"]`); if (!fz.checked) return showToast("Confirm acceptance and that you can reach this destination."); if (!cb.checked) return showToast("Confirm you actually dropped it off."); const compost = btn.dataset.type === "compost"; const body = {listing_id:id, destination_id:btn.dataset.outcome, action:compost ? "compost" : "donation", confirmed:true, destination_feasible_confirmed:true}; if (!compost) body.no_glass_confirmed = true; if (compost) Object.assign(body, {inedible_confirmed:true, material:"fruit_vegetable_scraps"}); if (await act(() => post("/outcomes", body), "Drop-off recorded as user-reported.")) { offerArea.hidden = true; load(); } });
   $("#fb-close").onclick = () => { offerArea.hidden = true; };
@@ -184,17 +186,17 @@ document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.close
 /* Listing form */
 function itemRow(i = {}) {
   const n = $("#item-rows").children.length + 1, row = document.createElement("fieldset"); row.className = "item-row";
-  row.innerHTML = `<legend>Item ${n}</legend><button type="button" class="mini-btn danger remove-item">Remove</button><div class="form-row"><label class="wide">Food name<input data-f="name" required value="${esc(i.name ?? "")}"></label><label>Quantity<input data-f="quantity" type="number" min="0.01" step="any" required value="${esc(i.quantity ?? "")}"></label><label>Unit<input data-f="unit" required placeholder="each, bag, lb" value="${esc(i.unit ?? "")}"></label></div><div class="form-row"><label>Category<select data-f="category" required><option value="">Choose</option><option value="produce">Whole produce</option><option value="shelf_stable">Unopened shelf-stable</option></select></label><label>Unopened?<select data-f="unopened"><option value="">Not applicable</option><option value="true">Yes, unopened</option><option value="false">No</option></select></label></div><div class="form-row"><label>Printed date <span class="optional">(optional)</span><input data-f="printed_date" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "")}"></label><label>Date label<select data-f="date_type"><option value="">None</option><option value="best_by">Best by</option><option value="use_by">Use by</option><option value="sell_by">Sell by</option><option value="expiration">Expiration</option></select></label></div>`;
-  row.querySelector("[data-f=category]").value = i.category ?? ""; row.querySelector("[data-f=unopened]").value = i.unopened == null ? "" : String(i.unopened);
+  row.innerHTML = `<legend>Item ${n}</legend><button type="button" class="mini-btn danger remove-item">Remove</button><div class="form-row"><label class="wide">Food name<input data-f="name" required value="${esc(i.name ?? "")}"></label><label>Quantity<input data-f="quantity" type="number" min="0.01" step="any" required value="${esc(i.quantity ?? "")}"></label><label>Unit<select data-f="unit" required><option value="">Choose</option>${UNITS.map(u => `<option>${u}</option>`).join("")}</select></label></div><div class="form-row"><label>Category<select data-f="category" required><option value="">Choose</option><option value="produce">Whole produce</option><option value="shelf_stable">Unopened shelf-stable</option></select></label><label>Unopened?<select data-f="unopened"><option value="">Not applicable</option><option value="true">Yes, unopened</option><option value="false">No</option></select></label></div><div class="form-row"><label>Printed date <span class="optional">(optional)</span><input data-f="printed_date" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "")}"></label><label>Date label<select data-f="date_type"><option value="">None</option><option value="best_by">Best by</option><option value="use_by">Use by</option><option value="sell_by">Sell by</option><option value="expiration">Expiration</option></select></label></div>`;
+  row.querySelector("[data-f=unit]").value = UNITS.includes(i.unit) ? i.unit : ""; row.querySelector("[data-f=category]").value = i.category ?? ""; row.querySelector("[data-f=unopened]").value = i.unopened == null ? "" : String(i.unopened);
   if (i.date_type) { const dt = row.querySelector("[data-f=date_type]"); dt.value = i.date_type; if (dt.value !== i.date_type) dt.value = ""; }
-  row.querySelector(".remove-item").onclick = () => { row.remove(); renumber(); };
+  row.querySelector(".remove-item").onclick = () => { row.remove(); renumber(); onFormChanged(); };
   $("#item-rows").append(row); renumber();
 }
 function renumber() { const rows = [...$("#item-rows").children], bundle = $("#listing-type").value === "bundle"; rows.forEach((r, i) => { r.querySelector("legend").textContent = `Item ${i + 1}`; r.querySelector(".remove-item").hidden = rows.length === 1; }); $("#add-item").hidden = !bundle || rows.length >= 5; }
 function setMode() { const g = $("#listing-mode").value === "giveaway"; document.querySelectorAll("#listing-form .exchange-only").forEach(n => n.hidden = g); }
 $("#listing-mode").onchange = setMode;
-$("#listing-type").onchange = () => { if ($("#listing-type").value === "single") [...$("#item-rows").children].slice(1).forEach(r => r.remove()); renumber(); };
-$("#add-item").onclick = () => { if ($("#item-rows").children.length < 5) itemRow(); };
+$("#listing-type").onchange = () => { if ($("#listing-type").value === "single") [...$("#item-rows").children].slice(1).forEach(r => r.remove()); renumber(); onFormChanged(); };
+$("#add-item").onclick = () => { if ($("#item-rows").children.length < 5) { itemRow(); onFormChanged(); } };
 function resetListingForm() { form.reset(); $("#item-rows").innerHTML = ""; itemRow(); setMode(); renumber(); }
 
 $("#interpret-button").onclick = async () => {
@@ -212,34 +214,169 @@ $("#interpret-button").onclick = async () => {
     if (draft.availability) notes.push(`You said availability: "${draft.availability}". Set exact pickup times.`);
     if (draft.deadline_text) notes.push(`You said deadline: "${draft.deadline_text}". Set the exact date and time.`);
     st.innerHTML = `Draft ready. Review every field, fill blanks, and choose exact dates yourself. Nothing has been saved.${notes.length ? `<div class="ambiguities"><strong>Please resolve:</strong><ul>${notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul></div>` : ""}`;
-    renumber();
+    renumber(); invalidateApproval(true);
   } catch (e) { st.textContent = `Interpretation failed: ${e.message} Your text is kept; retry or fill the form manually.`; }
   finally { btn.disabled = false; }
 };
 
+/* Listing review + publish (Bob approval required before every new or updated listing) */
+const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 1024 * 1024;
+let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen = 0, reviewing = false, publishing = false, editingId = null, reviewState = {kind:"idle"};
+$("#wanted-unit").innerHTML = `<option value="">Choose</option>` + UNITS.map(u => `<option>${u}</option>`).join("");
+function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+function photoUrl(p) { return p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
+
+function readDraft() {
+  const miss = [], type = $("#listing-type").value, mode = $("#listing-mode").value, now = Date.now();
+  if (!["exchange","giveaway"].includes(mode)) miss.push("Choose exchange or giveaway.");
+  if (!["single","bundle"].includes(type)) miss.push("Choose single item or bundle.");
+  const items = [...$("#item-rows").children].map(r => { const g = f => r.querySelector(`[data-f=${f}]`).value.trim(); const u = g("unopened"); return {name:g("name"), quantity:Number(g("quantity")), unit:g("unit"), category:g("category") || null, unopened:u === "" ? null : u === "true", printed_date:g("printed_date") || null, date_type:g("date_type") || null}; });
+  if (type === "single" && items.length !== 1) miss.push("A single listing needs exactly one item.");
+  if (items.length < 1 || items.length > 5) miss.push("List between 1 and 5 items.");
+  items.forEach((it, i) => { const n = `Item ${i + 1}`;
+    if (!it.name) miss.push(`${n}: food name.`);
+    if (!(it.quantity > 0) || !Number.isFinite(it.quantity) || it.quantity > 999) miss.push(`${n}: quantity must be between 0 and 999.`);
+    if (["each","bag","can","box","bottle","package"].includes(it.unit) && !Number.isInteger(it.quantity)) miss.push(`${n}: use a whole number for this unit.`);
+    if (!UNITS.includes(it.unit)) miss.push(`${n}: unit.`);
+    if (!["produce","shelf_stable"].includes(it.category)) miss.push(`${n}: category.`);
+    if (it.category === "shelf_stable" && it.unopened !== true) miss.push(`${n}: packaged food must be marked unopened.`);
+    if (!!it.printed_date !== !!it.date_type) miss.push(`${n}: printed date and date label must both be set or both left blank.`);
+  });
+  const wf = form.wanted_food.value.trim(), wq = Number(form.wanted_quantity.value), wu = form.wanted_unit.value;
+  if (mode === "exchange") { if (!wf) miss.push("Food you want in return."); if (!(wq > 0)) miss.push("Positive quantity for the food you want."); if (!UNITS.includes(wu)) miss.push("Unit for the food you want."); }
+  if (!ZONES.includes(form.location.value)) miss.push("Public pickup zone.");
+  const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
+  if (!ps) miss.push("Exact pickup start."); if (!pe) miss.push("Exact pickup end."); if (!dl) miss.push("Exact available-until deadline.");
+  if (ps && pe && new Date(pe) <= new Date(ps)) miss.push("Pickup end must be after pickup start.");
+  if (pe && dl && new Date(pe) > new Date(dl)) miss.push("Pickup end must be on or before the deadline.");
+  if (pe && new Date(pe).getTime() <= now) miss.push("Pickup end must be in the future.");
+  if (dl && new Date(dl).getTime() <= now) miss.push("Deadline must be in the future.");
+  if (!TZ) miss.push("Time zone could not be detected.");
+  const allergens = form.allergens.value.trim(); if (!allergens) miss.push('Allergens (write "Unknown" if unsure).');
+  if (!form.fresh.checked) miss.push("Confirm food condition.");
+  if (!form.storage_confirmed.checked) miss.push("Confirm storage and allergen disclosure.");
+  if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo) miss.push("Photo of the actual food.");
+  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? wu : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, photo_id:photo?.id || null};
+  return {payload, key:JSON.stringify(payload), miss};
+}
+function approvalValid(d) { return !!(approval && sessionUser && approval.key === d.key && Date.now() < approval.exp && approval.photo_id === photo?.id); }
+function renderReview() {
+  const d = readDraft();
+  if (approval && Date.now() >= approval.exp) { approval = null; reviewState = {kind:"error", message:"Bob's approval expired. Check again before publishing."}; }
+  $("#listing-checklist").innerHTML = d.miss.length ? `<p class="muted">Missing or incorrect details (${d.miss.length}):</p><ul>${d.miss.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="ok">All required details are complete.</p>`;
+  const ok = approvalValid(d), st = $("#review-status");
+  $("#review-button").disabled = !sessionUser || d.miss.length > 0 || reviewing || publishing;
+  $("#review-button").textContent = reviewing ? "Bob is checking..." : ok ? "Check again with Bob" : "Check with Bob";
+  $("#publish-button").disabled = !sessionUser || d.miss.length > 0 || !ok || reviewing || publishing;
+  $("#publish-button").textContent = publishing ? "Publishing..." : editingId ? "Publish updated listing" : "Publish listing";
+  const r = reviewState; let html = "";
+  if (reviewing) html = `<div class="rs-checking">Bob is checking your details and photo. You can keep editing, but any edit cancels this check.</div>`;
+  else if (ok) { const mins = Math.max(0, Math.ceil((approval.exp - Date.now()) / 60000)); html = `<div class="rs-approved"><strong>Ready to publish.</strong> Bob found the details and photo consistent.${approval.reason ? ` ${esc(approval.reason)}` : ""} Approval expires at ${esc(new Date(approval.exp).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}))} (about ${mins} min).</div>`; }
+  else if (r.kind === "rejected" || r.kind === "error") { const checks = Array.isArray(r.checks) ? r.checks : r.checks && typeof r.checks === "object" ? Object.entries(r.checks).map(([k, v]) => `${k.replaceAll("_"," ")}: ${typeof v === "object" ? (v.message || v.reason || (v.passed ? "ok" : "needs attention")) : v}`) : []; html = `<div class="rs-${r.kind}"><strong>${r.kind === "rejected" ? "Not approved." : "Check could not finish."}</strong> ${esc(r.message || "")}${checks.length ? `<ul>${checks.map(c => `<li>${esc(typeof c === "string" ? c : c.message || c.reason || c.name || JSON.stringify(c))}</li>`).join("")}</ul>` : ""}<br>Your entries are kept. Fix them and check again.</div>`; }
+  else if (r.kind === "idle" && r.message) html = `<div class="rs-checking">${esc(r.message)}</div>`;
+  st.innerHTML = html;
+}
+function invalidateApproval(changed) {
+  const had = approval || reviewing; approval = null; reviewGen++; reviewing = false;
+  reviewState = {kind:"idle", message:had && changed ? "Details changed, so the previous check no longer applies. Check again with Bob." : ""};
+  renderReview();
+}
+function onFormChanged() { invalidateApproval(true); }
+form.addEventListener("input", e => { if (e.target.id !== "interpret-text" && e.target.id !== "photo-input") onFormChanged(); });
+form.addEventListener("change", e => { if (e.target.id !== "interpret-text" && e.target.id !== "photo-input") onFormChanged(); });
+setInterval(() => { if (approval || reviewing) renderReview(); }, 1000);
+setInterval(() => { if (approval && Date.now() >= approval.exp) renderReview(); }, 1000);
+
+/* Photo */
+function renderPhoto() {
+  const pv = $("#photo-preview"); pv.classList.toggle("busy", photoBusy);
+  pv.innerHTML = photoBusy ? `<span>Uploading...</span>` : photo ? `<img src="${esc(photoUrl(photo))}" alt="Selected food photo">` : `<span>No photo yet</span>`;
+  $("#photo-remove").hidden = !photo || photoBusy;
+  document.querySelector("label.photo-pick").textContent = photo ? "Replace photo" : "Choose photo";
+}
+function discardPhoto(p) { if (p?.owned && p.id) api(`/listing-photos/${encodeURIComponent(p.id)}`, {method:"DELETE"}).catch(() => {}); }
+$("#photo-input").addEventListener("change", async e => {
+  const file = e.target.files[0], ps = $("#photo-status"); e.target.value = ""; if (!file) return;
+  if (!sessionUser) return openAuth();
+  if (!["image/jpeg","image/png","image/webp"].includes(file.type)) { ps.textContent = "Use a JPG, PNG or WebP image."; return; }
+  if (file.size > MAX_PHOTO) { ps.textContent = "That photo is larger than 5 MB. Choose a smaller one."; return; }
+  const gen = ++uploadGen; photoBusy = true; ps.textContent = "Uploading photo..."; renderPhoto(); invalidateApproval(true);
+  const fd = new FormData(); fd.append("photo", file);
+  try {
+    const res = await fetch(`${API}/listing-photos`, {method:"POST", credentials:"include", body:fd}).catch(() => { throw Error("Cannot reach the EchoPantry server."); });
+    let data = {}; try { data = await res.json(); } catch {}
+    if (!res.ok) throw Error(data.error || `Upload failed (${res.status}).`);
+    const fresh = {id:data.photo_id, preview_url:data.preview_url, owned:true};
+    if (gen !== uploadGen || !sessionUser) { discardPhoto(fresh); return; }
+    const old = photo; photo = fresh; discardPhoto(old); ps.textContent = "Photo uploaded. Bob will check it with your details.";
+  } catch (er) { if (gen === uploadGen) ps.textContent = `${er.message} Your other entries are kept.`; }
+  finally { if (gen === uploadGen) { photoBusy = false; renderPhoto(); invalidateApproval(true); } }
+});
+$("#photo-remove").onclick = () => { discardPhoto(photo); photo = null; $("#photo-status").textContent = "Photo removed. A photo is required to publish."; renderPhoto(); invalidateApproval(true); };
+
+/* Bob review */
+$("#review-button").onclick = async () => {
+  if (!sessionUser) return openAuth();
+  const d = readDraft(); if (d.miss.length) return renderReview();
+  const gen = ++reviewGen; approval = null; reviewing = true; reviewState = {kind:"checking"}; renderReview();
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), REVIEW_TIMEOUT_MS);
+  try {
+    const r = await api("/listings/review", {method:"POST", body:d.key, signal:ctrl.signal});
+    if (gen !== reviewGen || !sessionUser || readDraft().key !== d.key) return;
+    if (r.approved === true && r.approval_id && r.photo_id === d.payload.photo_id) {
+      const server = Date.parse(r.expires_at); approval = {id:r.approval_id, key:d.key, photo_id:r.photo_id, reason:r.reason || "", exp:Math.min(Number.isFinite(server) ? server : Infinity, Date.now() + REVIEW_TTL_MS)};
+      reviewState = {kind:"approved"};
+    } else reviewState = {kind:"rejected", message:r.reason || r.error || "Bob did not approve this listing.", checks:r.checks};
+  } catch (er) {
+    if (gen !== reviewGen) return;
+    if (er.status === 422) reviewState = {kind:"rejected", message:er.data?.reason || er.message, checks:er.data?.checks};
+    else if (er.status === 401) { reviewState = {kind:"error", message:"Your session ended. Sign in again."}; }
+    else reviewState = {kind:"error", message:er.timeout ? "Bob did not respond in time. Publishing stays blocked; try again shortly." : er.status === 503 ? `${er.message} Bob is unavailable, so publishing is blocked for now.` : er.message};
+  } finally { clearTimeout(t); if (gen === reviewGen) { reviewing = false; renderReview(); } }
+};
+
+/* Publish */
 form.addEventListener("submit", async e => {
   e.preventDefault(); if (!sessionUser) return openAuth(); notice.hidden = true;
-  const type = $("#listing-type").value, mode = $("#listing-mode").value;
-  const items = [...$("#item-rows").children].map(r => { const g = f => r.querySelector(`[data-f=${f}]`).value.trim(); const u = g("unopened"); return {name:g("name"), quantity:Number(g("quantity")), unit:g("unit"), category:g("category") || null, unopened:u === "" ? null : u === "true", printed_date:g("printed_date") || null, date_type:g("date_type") || null}; });
-  const err = m => setNotice(notice, m);
-  if (type === "single" && items.length !== 1) return err("A single listing must have exactly one item.");
-  if (items.length < 1 || items.length > 5) return err("List between 1 and 5 items.");
-  for (const [i, it] of items.entries()) { if (!it.name || !(it.quantity > 0) || !it.unit) return err(`Item ${i + 1} needs a name, positive quantity and unit.`); if (!it.category) return err(`Choose a category for item ${i + 1}.`); if (it.category === "shelf_stable" && it.unopened !== true) return err(`Shelf-stable item ${i + 1} must be unopened.`); if (it.printed_date && !it.date_type) return err(`Choose a date label for item ${i + 1}.`); }
-  const wq = Number(form.wanted_quantity.value);
-  if (mode === "exchange" && (!form.wanted_food.value.trim() || !(wq > 0) || !form.wanted_unit.value.trim())) return err("Exchanges need one wanted food with quantity and unit.");
-  if (!form.location.value) return err("Choose a public pickup zone.");
-  const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
-  if (!ps || !pe || !dl) return err("Set exact pickup start, end and deadline.");
-  if (new Date(pe) <= new Date(ps)) return err("Pickup end must be after the start.");
-  if (!form.fresh.checked || !form.storage_confirmed.checked) return err("Confirm food condition and storage.");
-  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? form.wanted_food.value.trim() : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? form.wanted_unit.value.trim() : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:true, storage_confirmed:true, allergens:form.allergens.value.trim()};
-  const btn = form.querySelector(".submit"); btn.disabled = true;
-  try { const d = await post("/listings", payload); const n = (d.matches || []).length;
-    setNotice(notice, mode === "giveaway" ? "Giveaway published." : n ? `Listing published. ${n} compatible match${n === 1 ? "" : "es"} found.` : "Listing published. No compatible match yet.", true);
-    resetListingForm(); $("#interpret-text").value = ""; $("#interpret-notice").textContent = ""; await load();
-    if (mode === "exchange" && d.listing?.id) openFallback(d.listing.id);
-  } catch (er) { err(er.message); } finally { btn.disabled = false; }
+  const d = readDraft(); if (d.miss.length || !approvalValid(d) || reviewing || publishing) { renderReview(); return setNotice(notice, d.miss.length ? "Complete the missing details first." : "Check the current details with Bob before publishing."); }
+  const body = JSON.stringify({...d.payload, approval_id:approval.id}), id = editingId, mode = d.payload.mode;
+  publishing = true; renderReview();
+  try {
+    const r = id ? await api(`/listings/${encodeURIComponent(id)}`, {method:"PATCH", body}) : await post("/listings", JSON.parse(body));
+    const n = (r.matches || []).length; photo = null; resetEditor(false);
+    setNotice(notice, (id ? "Listing updated. " : "") + (mode === "giveaway" ? "Giveaway published." : n ? `Listing published. ${n} compatible match${n === 1 ? "" : "es"} found.` : "Listing published. No compatible match yet."), true);
+    $("#interpret-text").value = ""; $("#interpret-notice").textContent = ""; await load();
+    const lid = r.listing?.id || id; if (mode === "exchange" && lid) openFallback(lid);
+  } catch (er) {
+    approval = null; reviewState = {kind:"error", message:"This approval can no longer be used. Check again with Bob."};
+    setNotice(notice, `${er.message} Your entries are kept.`); if (er.status === 409) load();
+  } finally { publishing = false; renderReview(); }
 });
+
+/* Editor state */
+function resetEditor(discard = true) {
+  uploadGen++; if (discard) discardPhoto(photo); photo = null; photoBusy = false; editingId = null;
+  resetListingForm(); $("#photo-status").textContent = ""; $("#edit-banner").hidden = true; $("#cancel-edit").hidden = true; $("#listing-form-title").textContent = "Create a listing";
+  renderPhoto(); invalidateApproval(false);
+}
+function editListing(l, over = {}) {
+  if (!sessionUser) return openAuth();
+  uploadGen++; discardPhoto(photo); notice.hidden = true; form.reset(); $("#item-rows").innerHTML = "";
+  const items = itemsOf(l).slice(0, 5); $("#listing-type").value = items.length > 1 ? "bundle" : "single";
+  (items.length ? items : [{}]).forEach(itemRow);
+  $("#listing-mode").value = over.mode || l.mode || "exchange"; setMode();
+  form.wanted_food.value = l.wanted_food || ""; form.wanted_quantity.value = l.wanted_quantity ?? ""; form.wanted_unit.value = UNITS.includes(l.wanted_unit) ? l.wanted_unit : "";
+  form.location.value = ZONES.includes(l.location) ? l.location : "";
+  form.pickup_start.value = toLocalInput(l.pickup_start); form.pickup_end.value = toLocalInput(l.pickup_end); form.deadline.value = toLocalInput(l.deadline);
+  form.allergens.value = l.allergens || "";
+  photo = l.photo_id ? {id:l.photo_id, owned:false} : null; photoBusy = false; editingId = l.id;
+  $("#photo-status").textContent = photo ? "Using the saved photo. Replace it if the food has changed." : "This listing has no photo yet. Add one to publish.";
+  $("#listing-form-title").textContent = "Edit listing"; $("#cancel-edit").hidden = false;
+  $("#edit-banner").hidden = false; $("#edit-banner").textContent = `Editing your existing listing${over.mode === "giveaway" ? " as a giveaway" : ""}. Reconfirm condition and storage, check with Bob, then publish to update it. Nothing changes until you publish.`;
+  renumber(); renderPhoto(); invalidateApproval(false);
+  $("#create").scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("#cancel-edit").onclick = () => { resetEditor(true); notice.hidden = true; showToast("Editing cancelled. The saved listing is unchanged."); };
 
 /* Standalone request */
 $("#request-form").addEventListener("submit", async e => {
@@ -261,8 +398,8 @@ async function refreshNotifications() {
 
 /* Auth */
 function setAuthMode(mode) { authMode = mode; const s = mode === "signup"; $("#auth-title").textContent = s ? "Join EchoPantry" : "Welcome back"; $("#auth-subtitle").textContent = s ? "Create an account to share and find food." : "Sign in to list food and manage your exchanges."; $("#display-name-field").hidden = !s; $("#auth-form [name=display_name]").required = s; $("#auth-form [name=password]").autocomplete = s ? "new-password" : "current-password"; $("#auth-submit").textContent = s ? "Create account" : "Sign in"; $("#login-tab").classList.toggle("selected", !s); $("#signup-tab").classList.toggle("selected", s); }
-function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
-function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); }
+function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); if (editingId || photo || approval || reviewing) resetEditor(false); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
+function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; renderReview(); $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); }
 function openAuth(mode = "login") { setAuthMode(mode); $("#auth-notice").hidden = true; $("#auth-dialog").showModal(); }
 $("#auth-button").onclick = () => openAuth(); $("#listing-auth-button").onclick = () => openAuth(); $("#request-auth-button").onclick = () => openAuth(); $("#close-auth").onclick = () => $("#auth-dialog").close(); $("#login-tab").onclick = () => setAuthMode("login"); $("#signup-tab").onclick = () => setAuthMode("signup");
 $("#auth-form").addEventListener("submit", async e => {
@@ -272,11 +409,11 @@ $("#auth-form").addEventListener("submit", async e => {
     sessionUser = r.user; $("#auth-dialog").close(); f.reset(); renderSession(); await load(); showToast(s ? "Welcome to EchoPantry." : "You are signed in.");
   } catch (er) { setNotice(m, er.message); } finally { b.disabled = false; }
 });
-$("#logout-button").onclick = async () => { try { await post("/auth/logout"); } catch {} sessionUser = null; renderSession(); await load(); showToast("Signed out."); };
+$("#logout-button").onclick = async () => { resetEditor(true); try { await post("/auth/logout"); } catch {} sessionUser = null; renderSession(); await load(); showToast("Signed out."); };
 $("#delete-account").onclick = async () => { if (!confirm("Delete your account? This deactivates sign-in and hides your active listings.")) return; try { await api("/auth/account", {method:"DELETE"}); sessionUser = null; renderSession(); await load(); showToast("Account deactivated."); } catch (e) { showToast(e.message); } };
 
 async function initialize() {
-  resetListingForm(); renderSession(); checkHealth();
+  resetEditor(false); renderSession(); checkHealth();
   try { sessionUser = (await api("/auth/me")).user || null; } catch { sessionUser = null; }
   renderSession(); await load();
 }

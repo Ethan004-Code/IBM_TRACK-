@@ -5,27 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { FoodItem } from './foodItem';
-import type { ListingInputListingType } from './listingInputListingType';
-import type { ListingInputMode } from './listingInputMode';
+import type { ListingDraft } from './listingDraft';
 
-export interface ListingInput {
-  mode: ListingInputMode;
-  listing_type: ListingInputListingType;
-  /**
-     * @minItems 1
-     * @maxItems 5
-     */
-  item_details: FoodItem[];
-  wanted_food?: string;
-  wanted_quantity?: number;
-  wanted_unit?: string;
-  location: string;
-  pickup_start: Date;
-  pickup_end: Date;
-  deadline: Date;
-  timezone?: string;
-  fresh: boolean;
-  storage_confirmed: boolean;
-  allergens?: string;
-}
+export type ListingInput = ListingDraft & {
+  approval_id: string;
+};

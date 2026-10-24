@@ -45,3 +45,14 @@
 .button,.swap-button,.auth-button,.mini-btn,.offer-actions button{min-height:36px}
 @media(max-width:760px){.activity-grid{grid-template-columns:1fr}.impact-strip{grid-template-columns:repeat(2,1fr)}.impact-strip .impact-title{grid-column:1/-1}.form-row{flex-wrap:wrap}.form-row>label{flex:1 1 140px}.topbar{height:auto;flex-wrap:wrap;padding:10px 18px;gap:8px}.profile{flex-wrap:wrap}}
 @media(max-width:500px){.topbar nav{display:flex;width:100%;margin:0;overflow-x:auto;height:36px}}
+
+/* bob review */
+.req{color:#a45548;font-weight:600;font-size:9px;letter-spacing:.04em;margin-left:4px}
+.photo-field{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}.photo-field legend{font-size:10px;font-weight:700;color:#536156;padding:0 4px}
+.photo-box{display:flex;gap:14px;align-items:flex-start}.photo-preview{width:132px;height:100px;border-radius:8px;background:#eef1e8;display:grid;place-items:center;overflow:hidden;flex:none;color:#90988e;font-size:10px;border:1px dashed #cfd9cb}.photo-preview img{width:100%;height:100%;object-fit:cover}.photo-preview.busy{animation:sh 1.2s infinite;background:linear-gradient(90deg,#eef1e8,#f6f7f1,#eef1e8);background-size:200% 100%}
+.photo-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.form-card label.photo-pick{display:inline-flex;align-items:center;margin:0;color:#315f45}.photo-actions .parse-notice{width:100%;margin:4px 0 0}
+.review-panel{background:#f7f8f3;border:1px solid var(--line);border-radius:8px;padding:4px 12px 10px;margin:4px 0 14px}.review-panel .sub-head{margin:10px 0 8px}.review-btn{width:100%;margin:8px 0}
+.checklist ul{margin:0;padding-left:16px;font-size:10px;color:#a45548;line-height:1.7}.checklist .ok{font-size:10px;color:#315f45;font-weight:600;margin:0}
+.review-status{font-size:11px;line-height:1.5;border-radius:6px}.review-status:empty{display:none}.review-status>div{padding:9px 10px;border-radius:6px}.rs-checking{background:#eef1e8;color:#536156}.rs-approved{background:#eef6eb;color:#315f45}.rs-rejected,.rs-error{background:#fff2ef;color:#ab493d}.review-status ul{margin:5px 0 0;padding-left:16px}
+.edit-banner{background:#fff7e6;color:#7a5520;padding:9px 11px;border-radius:6px;font-size:10px;margin:-8px 0 14px}.cancel-edit{width:100%;margin-top:8px}.submit:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.card-art img.card-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}.card-art .urgency{z-index:2}

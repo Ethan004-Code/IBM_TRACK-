@@ -18,10 +18,12 @@ export const GetListingsQueryParams = zod.object({
 export const GetListingsResponse = zod.record(zod.string(), zod.unknown())
 
 
-export const publishListingBodyItemDetailsItemQuantityExclusiveMin = 0;
-export const publishListingBodyItemDetailsItemQuantityMax = 999;
+export const publishListingBodyOneItemDetailsItemQuantityExclusiveMin = 0;
+export const publishListingBodyOneItemDetailsItemQuantityMax = 999;
 
-export const publishListingBodyItemDetailsMax = 5;
+export const publishListingBodyOneItemDetailsMax = 5;
+
+export const publishListingBodyOneAllergensMax = 200;
 
 
 
@@ -30,13 +32,13 @@ export const PublishListingBody = zod.object({
   "listing_type": zod.enum(['single', 'bundle']),
   "item_details": zod.array(zod.object({
   "name": zod.string(),
-  "quantity": zod.number().gt(publishListingBodyItemDetailsItemQuantityExclusiveMin).max(publishListingBodyItemDetailsItemQuantityMax),
+  "quantity": zod.number().gt(publishListingBodyOneItemDetailsItemQuantityExclusiveMin).max(publishListingBodyOneItemDetailsItemQuantityMax),
   "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
   "category": zod.enum(['produce', 'shelf_stable']),
-  "unopened": zod.boolean().optional(),
+  "unopened": zod.boolean().nullish(),
   "printed_date": zod.string().nullish(),
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
-})).min(1).max(publishListingBodyItemDetailsMax),
+})).min(1).max(publishListingBodyOneItemDetailsMax),
   "wanted_food": zod.string().optional(),
   "wanted_quantity": zod.number().optional(),
   "wanted_unit": zod.string().optional(),
@@ -44,13 +46,134 @@ export const PublishListingBody = zod.object({
   "pickup_start": zod.coerce.date(),
   "pickup_end": zod.coerce.date(),
   "deadline": zod.coerce.date(),
-  "timezone": zod.string().optional(),
+  "timezone": zod.string(),
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
-  "allergens": zod.string().optional()
-})
+  "allergens": zod.string().min(1).max(publishListingBodyOneAllergensMax),
+  "photo_id": zod.string().uuid()
+}).and(zod.object({
+  "approval_id": zod.string().uuid()
+}))
 
 export const PublishListingResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Upload an authenticated owner's private JPG, PNG or WebP photo
+ */
+export const UploadListingPhotoBody = zod.object({
+  "photo": zod.instanceof(Blob)
+})
+
+export const UploadListingPhotoResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetListingPhotoParams = zod.object({
+  "photoId": zod.coerce.string().uuid()
+})
+
+export const GetListingPhotoResponse = zod.unknown()
+
+
+export const DeleteUnpostedListingPhotoParams = zod.object({
+  "photoId": zod.coerce.string().uuid()
+})
+
+export const DeleteUnpostedListingPhotoResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Require complete fields and real Bob image approval; never publishes
+ */
+export const reviewListingBodyItemDetailsItemQuantityExclusiveMin = 0;
+export const reviewListingBodyItemDetailsItemQuantityMax = 999;
+
+export const reviewListingBodyItemDetailsMax = 5;
+
+export const reviewListingBodyAllergensMax = 200;
+
+
+
+export const ReviewListingBody = zod.object({
+  "mode": zod.enum(['exchange', 'giveaway']),
+  "listing_type": zod.enum(['single', 'bundle']),
+  "item_details": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number().gt(reviewListingBodyItemDetailsItemQuantityExclusiveMin).max(reviewListingBodyItemDetailsItemQuantityMax),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
+  "category": zod.enum(['produce', 'shelf_stable']),
+  "unopened": zod.boolean().nullish(),
+  "printed_date": zod.string().nullish(),
+  "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
+})).min(1).max(reviewListingBodyItemDetailsMax),
+  "wanted_food": zod.string().optional(),
+  "wanted_quantity": zod.number().optional(),
+  "wanted_unit": zod.string().optional(),
+  "location": zod.string(),
+  "pickup_start": zod.coerce.date(),
+  "pickup_end": zod.coerce.date(),
+  "deadline": zod.coerce.date(),
+  "timezone": zod.string(),
+  "fresh": zod.boolean(),
+  "storage_confirmed": zod.boolean(),
+  "allergens": zod.string().min(1).max(reviewListingBodyAllergensMax),
+  "photo_id": zod.string().uuid()
+})
+
+export const ReviewListingResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateReviewedListingParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const updateReviewedListingBodyOneOneItemDetailsItemQuantityExclusiveMin = 0;
+export const updateReviewedListingBodyOneOneItemDetailsItemQuantityMax = 999;
+
+export const updateReviewedListingBodyOneOneItemDetailsMax = 5;
+
+export const updateReviewedListingBodyOneOneAllergensMax = 200;
+
+
+
+export const UpdateReviewedListingBody = zod.union([zod.object({
+  "mode": zod.enum(['exchange', 'giveaway']),
+  "listing_type": zod.enum(['single', 'bundle']),
+  "item_details": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number().gt(updateReviewedListingBodyOneOneItemDetailsItemQuantityExclusiveMin).max(updateReviewedListingBodyOneOneItemDetailsItemQuantityMax),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
+  "category": zod.enum(['produce', 'shelf_stable']),
+  "unopened": zod.boolean().nullish(),
+  "printed_date": zod.string().nullish(),
+  "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
+})).min(1).max(updateReviewedListingBodyOneOneItemDetailsMax),
+  "wanted_food": zod.string().optional(),
+  "wanted_quantity": zod.number().optional(),
+  "wanted_unit": zod.string().optional(),
+  "location": zod.string(),
+  "pickup_start": zod.coerce.date(),
+  "pickup_end": zod.coerce.date(),
+  "deadline": zod.coerce.date(),
+  "timezone": zod.string(),
+  "fresh": zod.boolean(),
+  "storage_confirmed": zod.boolean(),
+  "allergens": zod.string().min(1).max(updateReviewedListingBodyOneOneAllergensMax),
+  "photo_id": zod.string().uuid()
+}).and(zod.object({
+  "approval_id": zod.string().uuid()
+})),zod.object({
+  "inedible_confirmed": zod.literal(true)
+})])
+
+export const UpdateReviewedListingResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const WithdrawListingParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const WithdrawListingResponse = zod.record(zod.string(), zod.unknown())
 
 
 export const interpretListingBodyTextMax = 1200;

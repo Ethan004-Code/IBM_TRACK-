@@ -1,5 +1,15 @@
 # EchoPantry verification
 
+## Required photo and Bob approval update
+
+- **39 isolated tests pass**, including required fields, missing/foreign/expired/reused/changed approval rejection, giveaway-switch protection, malformed/uncertain/rejected Bob output, successful review without automatic posting, photo decoding, metadata removal and private/deleted-photo access controls.
+- The updated additive SQL passes its disposable PostgreSQL check, including reruns, atomic approval consumption with listing writes, private receipt permissions, duplicate receipt protection and existing reservation concurrency checks.
+- Private App Storage upload/download/delete was checked with temporary images; all temporary objects were removed.
+- Real Bob ACP image prompts inspected image contents, accepted a relevant three-onion photograph after deterministic server validation, and rejected an unrelated blue image during integration. The worker has no filesystem, terminal, MCP or other tool access. No production listing was created by these probes.
+- OpenAPI generation, workspace type checks, production frontend build and JavaScript syntax checks pass.
+- **Pending:** the user must apply the latest `artifacts/api-server/backend/interview_migration.sql` to the existing Supabase project. The old database schema is intentionally blocked from new writes until this update; existing rows are preserved.
+- The earlier live API results below predate mandatory photo approval. The updated live checker now requires real food-photo fixtures and the latest schema. The signed-in browser photo-upload/review/publish flow has not yet been exercised.
+
 ## Completed
 
 - Restored the user's supplied HTML/CSS/JavaScript and Flask source, retaining the visual identity and Supabase Auth.
