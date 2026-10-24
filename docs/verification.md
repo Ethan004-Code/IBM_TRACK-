@@ -1,4 +1,4 @@
-# Verification and remaining setup
+# EchoPantry verification
 
 ## Completed
 
@@ -8,27 +8,24 @@
 - Installed official IBM Bob Shell 2.0.6 from IBM's documented distribution.
 - Ran a real Bob interpretation through the restricted Python worker with a fresh description of onions and unopened rice. It returned two foods and retained missing details as unknown. No database action was taken.
 - Flask and the website workflows start. The public website displays the real setup state instead of fake accounts, data, or success.
+- The user applied the corrected Supabase migration. `/api/health` now reports `status: ok`, `storage: supabase`, and no setup requirements.
+- All **38 live API checks** in `backend/check_supabase.py` passed against the configured Supabase project: three real password logins/session resolutions, persistent listings, reciprocal matching, fixed offer contents, participant permissions, simultaneous competing acceptances with one winner and one 409, reservation ownership on cancellation, both-party exchange and giveaway completion, replay/idempotency, recommendation versus reported donation, test-impact exclusions, authenticated Bob interpretation, and logout.
+- The live check created only its own temporary users and rows. Test listings were flagged before handoffs so test outcomes did not alter real community impact. Temporary profiles, Auth accounts, listings, offers, requests, notifications, and ledger records were removed afterward.
+- The corrected SQL also passed on a disposable local Postgres cluster: install and rerun, service-role listing insert/update, all-or-nothing rollback, concurrent revision conflicts, browser-role function denial, and consistent snapshots. The temporary cluster was removed and was never used as the app's datastore.
+- Public-page screenshots were checked at desktop and mobile sizes. The final desktop capture shows no setup warning and reads the real empty database, not sample listings.
 
-## Still blocked / not verified
+## Remaining verification limits
 
-- The corrected Supabase API configuration now connects to the existing project. Read-only checks confirmed that the existing app tables are present and empty, while the new revision table and snapshot function are missing. No keys or URL values were displayed.
-- The supplied Postgres connection uses an IPv6-only direct endpoint. This workspace rejected the address family before authentication, so the database password has not yet been verified. Use the existing project's IPv4-compatible **Session pooler** connection from Supabase's Connect dialog for the migration.
-- No schema changes were applied to the external Supabase project. Apply `backend/supabase_schema.sql` if needed, followed by the additive `backend/interview_migration.sql`. Review and back up existing data first. These scripts do not delete listings or replace the database.
-- The first migration was applied by the user, and the live snapshot/public reads work. Real Supabase password sign-in and session resolution passed with three temporary accounts; all temporary users were removed.
-- A live listing write exposed an unresolved PL/pgSQL variable qualifier in the first transaction function. The corrected migration now uses an unambiguous variable. Re-run the updated `interview_migration.sql`; it preserves tables/rows and also publishes the contract version checked by the app.
-- The corrected original schema plus migration passed on a disposable, isolated local Postgres cluster: initial install and rerun, service-role listing insert/update, multirow rollback, competing revision commits (exactly one winner), anonymous/authenticated-role access denial, and consistent snapshot/revision. This cluster was not an app datastore and was removed.
-- Live listing persistence, competing acceptance, and both-party completion checks remain pending until the corrected transaction function is installed. A two-account browser handoff walkthrough and the signed-in UI are not verified.
-- Bob was verified at the live worker level, not through an authenticated website interaction (which depends on Supabase).
+- The live checks exercised the website's HTTP API, not browser clicks. A two-account signed-in browser walkthrough, browser cookie persistence, and field editing in the Bob form have not been independently verified. Server cookie flags were checked separately.
+- Verification accounts were created with Supabase Admin and email confirmation enabled, so no verification emails were sent. Signup email delivery and the project's confirmation-link configuration were not tested.
+- Compost policy and unknown-destination rejection passed isolated rule tests; the live API pass covered external donation rather than a compost submission.
 - Directory facts are manually maintained, sourced to the interview's official URLs and labeled with the interview's check date. They are not live organizational acceptance or appointments.
+- Direct Postgres maintenance is still unavailable with the supplied IPv6-only endpoint. It is not needed for normal app operations. Future authorized schema changes can use the Supabase SQL Editor or a dashboard-supplied IPv4 Session pooler connection.
 
-## Acceptance checks after correcting Supabase setup
+## Pilot browser checks still recommended
 
-1. Confirm `/api/health` reports storage `supabase`.
-2. Verify Supabase email-confirmation settings and sign up/sign in with two real pilot accounts.
-3. Submit a fresh surplus description through the website's Bob button. Review missing quantities, units and ambiguous dates; nothing should be saved until explicit publication.
-4. Create reciprocal listings with matching units/quantities and overlapping pickup windows. Verify incompatible, expired and non-overlapping listings cannot match.
-5. Propose two offers competing for the same listing; submit final acceptances concurrently. Only one transaction should reserve the food; the other must return 409.
-6. Verify each account can accept and confirm only itself. Cancel one reservation and ensure unrelated reservations remain unchanged.
-7. Confirm both accounts' pickup actions complete the handoff once. Repeat the calls and verify the impact ledger has no duplicate quantities.
-8. Repeat for a giveaway: request, owner approval, both parties confirm.
-9. Open fallback options; no impact is created. Report a real external drop-off with destination and required confirmations; verify user-reported labeling and compost totals stay separate.
+1. Sign up through the website using two pilot email addresses; follow confirmation links if the Supabase project requires them.
+2. Sign in within the embedded preview, reload, and check that the session remains active.
+3. Use the Bob button with a fresh description, correct the extracted fields, and publish only after resolving missing quantities/units/dates.
+4. Complete an exchange and giveaway using each account's own buttons; ensure the UI refreshes correctly and displays partner confirmation state.
+5. Review fallback options and verify donation/compost reporting controls require actual completed drop-off confirmations.

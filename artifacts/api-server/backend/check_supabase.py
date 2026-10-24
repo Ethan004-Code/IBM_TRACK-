@@ -10,7 +10,6 @@ import os
 import secrets
 import sys
 from datetime import datetime, timedelta, timezone
-from http.cookies import SimpleCookie
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -51,10 +50,13 @@ def main():
         except HTTPError as error:
             code, payload, hdr = error.code, error.read(), error.headers
         if actor and hdr.get("Set-Cookie"):
-            jar = SimpleCookie()
-            jar.load(hdr["Set-Cookie"])
-            if "echo_access_token" in jar:
-                cookies[actor] = "echo_access_token=" + jar["echo_access_token"].value
+            # Python 3.13 SimpleCookie rejects the modern Partitioned flag.
+            # The app sets just this one host-only auth cookie; preserve its
+            # name/value without interpreting browser-only cookie attributes.
+            for header in hdr.get_all("Set-Cookie", []):
+                pair = header.split(";", 1)[0].strip()
+                if pair.startswith("echo_access_token="):
+                    cookies[actor] = pair
         return code, json.loads(payload or "{}")
 
     def make_listing(actor, food, wants=None, category="produce", unit="each"):
