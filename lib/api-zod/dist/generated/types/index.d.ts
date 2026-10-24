@@ -20,6 +20,7 @@ export * from './listingChange';
 export * from './listingDraft';
 export * from './listingDraftListingType';
 export * from './listingDraftMode';
+export * from './listingDraftWantedUnit';
 export * from './listingInput';
 export * from './offerInput';
 export * from './outcomeInput';

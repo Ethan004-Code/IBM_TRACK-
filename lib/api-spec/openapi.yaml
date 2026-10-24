@@ -315,14 +315,14 @@ components:
         timezone: { type: string }
     FoodItem:
       type: object
-      required: [name, quantity, unit, category]
+      required: [name, quantity, category]
       properties:
         name: { type: string }
-        quantity: { type: number, exclusiveMinimum: 0, maximum: 999 }
-        unit: { type: string, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
+        quantity: { type: integer, minimum: 1, maximum: 99 }
+        unit: { type: string, default: each, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package], description: "Count-only forms send each; other values remain for historical compatibility." }
         category: { type: string, enum: [produce, shelf_stable] }
         unopened: { type: [boolean, "null"] }
-        printed_date: { type: [string, "null"] }
+        printed_date: { type: [string, "null"], format: date, description: "Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns." }
         date_type: { type: [string, "null"], enum: [best_by, use_by, sell_by, expiration, null] }
     ListingInput:
       allOf:
@@ -343,12 +343,12 @@ components:
           maxItems: 5
           items: { $ref: "#/components/schemas/FoodItem" }
         wanted_food: { type: string }
-        wanted_quantity: { type: number }
-        wanted_unit: { type: string }
+        wanted_quantity: { type: integer, minimum: 1, maximum: 99 }
+        wanted_unit: { type: string, default: each, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
         location: { type: string }
-        pickup_start: { type: string, format: date-time }
-        pickup_end: { type: string, format: date-time }
-        deadline: { type: string, format: date-time }
+        pickup_start: { type: string, format: date-time, description: "Timezone required; now through one calendar year ahead, strictly before pickup_end." }
+        pickup_end: { type: string, format: date-time, description: "After pickup_start, no later than deadline or one calendar year ahead." }
+        deadline: { type: string, format: date-time, description: "Available until; no earlier than pickup_end and no later than one calendar year ahead." }
         timezone: { type: string }
         fresh: { type: boolean }
         storage_confirmed: { type: boolean }

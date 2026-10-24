@@ -46,7 +46,7 @@ def validated_fields(data):
         if "," in wanted:
             raise BadRequest("Choose only one wanted food per exchange listing.")
         wanted_qty = quantity(data.get("wanted_quantity"))
-        wanted_unit = data.get("wanted_unit")
+        wanted_unit = data.get("wanted_unit") or "each"
         if wanted_unit not in UNITS:
             raise BadRequest("Choose the wanted food unit.")
     allergens = data.get("allergens")

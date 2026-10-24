@@ -1,10 +1,9 @@
 /* RePlate: app-style frontend.
    Uses the same Flask API, fields and rules as app.js. Only the screens are new. */
 import { createDonationMap } from "./new-donation-map.js";
+import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX } from "./limits.js";
 const API = "/api";
 const ZONES = ["Library steps", "Community Center", "Neighborhood Park", "Student Union", "Campus Green", "Dining Commons"];
-const UNITS = ["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"];
-const WHOLE_UNITS = ["each", "bag", "can", "box", "bottle", "package"];
 const DATE_TYPES = { best_by: "Best by", use_by: "Use by", sell_by: "Sell by", expiration: "Expiration" };
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 1024 * 1024, MAX_ITEMS = 5;
@@ -32,7 +31,6 @@ function toUtcIso(v) { if (!v) return null; const d = new Date(v); return Number
 function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function dayPart(v) { return toLocalInput(v).slice(0, 10); }
 function timePart(v) { return toLocalInput(v).slice(11, 16); }
-function todayInput() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function dayLabel(d) {
   const t = new Date(), a = new Date(t.getFullYear(), t.getMonth(), t.getDate()), b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = Math.round((b - a) / 864e5);
@@ -50,8 +48,6 @@ function windowText(a, b) {
 }
 function fullDate(v) { const d = new Date(v); return !v || Number.isNaN(d.getTime()) ? "Not set" : d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
 
-const PLURAL = { bag: "bags", can: "cans", box: "boxes", bottle: "bottles", package: "packages" };
-function unitText(unit, q) { if (!unit) return ""; return Number(q) === 1 ? unit : (PLURAL[unit] || unit); }
 function itemsOf(l) {
   if (Array.isArray(l?.item_details) && l.item_details.length) return l.item_details;
   if (Array.isArray(l?.items)) return l.items.map(x => typeof x === "string" ? { name: x, quantity: l.quantities?.[x] ?? null, unit: null } : x);
@@ -60,8 +56,7 @@ function itemsOf(l) {
 function itemText(i) {
   if (typeof i === "string") return i;
   if (i.quantity == null || i.quantity === "") return cap(i.name);
-  if (!i.unit || i.unit === "each") return `${i.quantity} ${i.name}`;
-  return `${cap(i.name)}, ${i.quantity} ${unitText(i.unit, i.quantity)}`;
+  return `${i.quantity} ${foldName(i.name, i.unit, i.quantity)}`;
 }
 function itemsText(arr) { return (arr || []).map(i => itemText(i).replace(/^./, c => c.toLowerCase())).join(", ") || "items"; }
 function listingTitle(l) {
@@ -104,8 +99,8 @@ const ICON = {
 const icon = (n, s = 20, cls = "") => `<svg class="ic ${cls}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 
 /* ---------------- State ---------------- */
-function emptyItem() { return { name: "", quantity: "", unit: "", condition: "", printed_date: "", date_type: "" }; }
-function emptyDraft() { return { items: [emptyItem()], mode: "exchange", wanted_food: "", wanted_quantity: "", wanted_unit: "", location: "", day: "", from: "", until: "", deadline: "", allergens: "", fresh: false, storage_confirmed: false }; }
+function emptyItem() { return { name: "", quantity: "", condition: "", printed_date: "", date_type: "" }; }
+function emptyDraft() { return { items: [emptyItem()], mode: "exchange", wanted_food: "", wanted_quantity: "", location: "", day: "", from: "", until: "", deadline: "", allergens: "", fresh: false, storage_confirmed: false }; }
 const S = {
   tab: "discover", user: null,
   listings: [], loaded: false, loadError: "",
@@ -244,30 +239,28 @@ function conditionOptions(sel) {
   return [["", "Choose"], ["produce", "Whole produce"], ["shelf_stable", "Unopened package"], ["opened", "Opened package"]]
     .map(([v, l]) => `<option value="${v}"${v === sel ? " selected" : ""}>${l}</option>`).join("");
 }
-function unitOptions(sel) { return `<option value="">Unit</option>` + UNITS.map(u => `<option${u === sel ? " selected" : ""}>${u}</option>`).join(""); }
+const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
 function zoneOptions(sel, placeholder = "Choose a public spot") { return `<option value="">${placeholder}</option>` + ZONES.map(z => `<option${z === sel ? " selected" : ""}>${esc(z)}</option>`).join(""); }
 function viewReview() {
-  const d = S.draft, sh = S.share;
+  const d = S.draft, sh = S.share, pl = printedLimits(), lim = pickupLimits();
   const items = d.items.map((it, i) => `<div class="item-ed">
-      <div class="item-top"><label class="sr-only" for="it-${i}-name">Food ${i + 1}</label><input id="it-${i}-name" data-bind="draft.items.${i}.name" value="${esc(it.name)}" placeholder="Food, like onions" autocomplete="off">
+      <div class="item-top"><label class="sr-only" for="it-${i}-name">Food ${i + 1}</label><input id="it-${i}-name" data-bind="draft.items.${i}.name" value="${esc(it.name)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off">
       ${d.items.length > 1 ? `<button type="button" class="icon-btn" data-action="remove-item" data-idx="${i}" aria-label="Remove ${esc(it.name || "item " + (i + 1))}">${icon("trash", 19)}</button>` : ""}</div>
       <div class="item-grid">
-        <label class="mini" for="it-${i}-qty"><span>Amount</span><input id="it-${i}-qty" type="number" min="0" step="any" inputmode="decimal" data-bind="draft.items.${i}.quantity" value="${esc(it.quantity)}"></label>
-        <label class="mini" for="it-${i}-unit"><span>Unit</span><select id="it-${i}-unit" data-bind="draft.items.${i}.unit">${unitOptions(it.unit)}</select></label>
-        <label class="mini" for="it-${i}-cond" style="grid-column:1 / -1"><span>Condition</span><select id="it-${i}-cond" data-bind="draft.items.${i}.condition" data-rerender="1">${conditionOptions(it.condition)}</select></label>
+        <label class="mini" for="it-${i}-qty"><span>Quantity</span><input id="it-${i}-qty" ${QTY_ATTRS} data-bind="draft.items.${i}.quantity" value="${esc(it.quantity)}"></label>
+        <label class="mini" for="it-${i}-cond"><span>Condition</span><select id="it-${i}-cond" data-bind="draft.items.${i}.condition" data-rerender="1">${conditionOptions(it.condition)}</select></label>
       </div>
       ${it.condition === "opened" ? `<p class="field-error">Opened packages can't be shared. Remove this item or change it.</p>` : ""}
       <details class="more-dates"${it.printed_date || it.date_type ? " open" : ""}><summary>Printed date (optional)</summary>
         <div class="item-grid" style="margin-top:6px">
-          <label class="mini" for="it-${i}-date"><span>Date</span><input id="it-${i}-date" type="date" data-bind="draft.items.${i}.printed_date" value="${esc(it.printed_date)}"></label>
+          <label class="mini" for="it-${i}-date"><span>Date</span><input id="it-${i}-date" type="date" min="${pl.min}" max="${pl.max}" data-bind="draft.items.${i}.printed_date" value="${esc(it.printed_date)}"></label>
           <label class="mini" for="it-${i}-dtype"><span>Label</span><select id="it-${i}-dtype" data-bind="draft.items.${i}.date_type"><option value="">None</option>${Object.entries(DATE_TYPES).map(([k, v]) => `<option value="${k}"${k === it.date_type ? " selected" : ""}>${v}</option>`).join("")}</select></label>
         </div></details>
     </div>`).join("");
   const add = d.items.length < MAX_ITEMS ? `<button type="button" class="row row-btn row-add" data-action="add-item">${icon("plus", 18)}<span class="grow">Add another item (up to 5)</span></button>` : "";
   const how = d.mode === "exchange"
-    ? `<div class="group"><div class="item-ed"><div class="item-top"><label class="sr-only" for="want-name">Food you'd like in return</label><input id="want-name" data-bind="draft.wanted_food" value="${esc(d.wanted_food)}" placeholder="What would you like in return?" autocomplete="off"></div>
-        <div class="item-grid"><label class="mini" for="want-qty"><span>Amount</span><input id="want-qty" type="number" min="0" step="any" inputmode="decimal" data-bind="draft.wanted_quantity" value="${esc(d.wanted_quantity)}"></label>
-        <label class="mini" for="want-unit"><span>Unit</span><select id="want-unit" data-bind="draft.wanted_unit">${unitOptions(d.wanted_unit)}</select></label></div></div></div>`
+    ? `<div class="group"><div class="item-ed"><div class="item-top"><label class="sr-only" for="want-name">Food you'd like in return</label><input id="want-name" data-bind="draft.wanted_food" value="${esc(d.wanted_food)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
+        <div class="item-grid"><label class="mini" for="want-qty"><span>Quantity</span><input id="want-qty" ${QTY_ATTRS} data-bind="draft.wanted_quantity" value="${esc(d.wanted_quantity)}"></label></div></div></div>`
     : `<p class="foot" style="margin:0 4px">Neighbors can ask for it and you choose who gets it. Nothing is promised until you approve.</p>`;
   return `<header class="vh"><div class="vh-row"><button type="button" class="back-btn" data-action="back-compose">${icon("chevL", 22)}Back</button>${accountBtn()}</div>
       <h1 class="large-title sm">${S.editingId ? "Edit your listing" : "Check your listing"}</h1><p class="vh-sub">Nothing goes live until Bob checks it and you publish.</p></header>
@@ -284,12 +277,12 @@ function viewReview() {
     <p class="section-label">When and where</p>
     <div class="group">
       <div class="row"><label for="f-zone">Pickup spot</label><select id="f-zone" data-bind="draft.location">${zoneOptions(d.location)}</select></div>
-      <div class="row"><label for="f-day">Day</label><input id="f-day" type="date" min="${todayInput()}" data-bind="draft.day" value="${esc(d.day)}"></div>
-      <div class="row"><label for="f-from">From</label><input id="f-from" type="time" data-bind="draft.from" value="${esc(d.from)}"></div>
-      <div class="row"><label for="f-until">Until</label><input id="f-until" type="time" data-bind="draft.until" value="${esc(d.until)}"></div>
-      <div class="row"><label for="f-deadline">Available until</label><input id="f-deadline" type="datetime-local" data-bind="draft.deadline" value="${esc(d.deadline)}"></div>
+      <div class="row"><label for="f-day">Day</label><input id="f-day" type="date" min="${lim.minDay}" max="${lim.maxDay}" data-bind="draft.day" value="${esc(d.day)}"></div>
+      <div class="row"><label for="f-from">From</label><input id="f-from" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.from" value="${esc(d.from)}"></div>
+      <div class="row"><label for="f-until">Until</label><input id="f-until" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.until" value="${esc(d.until)}"></div>
+      <div class="row"><label for="f-deadline">Available until</label><input id="f-deadline" type="datetime-local" min="${lim.minInput}" max="${lim.maxInput}" data-bind="draft.deadline" value="${esc(d.deadline)}"></div>
     </div>
-    <p class="foot">Meet at a public spot. Never share your home address. "Available until" can't be earlier than your pickup end.</p>
+    <p class="foot">Meet at a public spot. Never share your home address. Pickup must be within the next year, and "Available until" can't be earlier than your pickup end.</p>
     <p class="section-label">Allergens</p>
     <div class="group"><div class="row"><label for="f-allergens">Contains</label><input id="f-allergens" data-bind="draft.allergens" value="${esc(d.allergens)}" placeholder="Wheat, None, or Unknown"></div></div>
     <p class="foot">Required. Write "Unknown" if you're not sure. It's shown to whoever picks up.</p>
@@ -302,40 +295,36 @@ function viewReview() {
 
 /* Draft → API payload (same shape and checks as app.js) */
 function readDraft() {
-  const miss = [], d = S.draft, now = Date.now(), mode = d.mode;
+  const miss = [], warn = [], d = S.draft, mode = d.mode, now = Date.now();
   const items = d.items.map(it => {
     const category = it.condition === "produce" ? "produce" : (it.condition === "shelf_stable" || it.condition === "opened") ? "shelf_stable" : null;
     const unopened = it.condition === "shelf_stable" ? true : it.condition === "opened" ? false : null;
-    return { name: String(it.name).trim(), quantity: Number(it.quantity), unit: it.unit, category, unopened, printed_date: it.printed_date || null, date_type: it.date_type || null };
+    return { name: String(it.name).trim(), quantity: parseQty(it.quantity), unit: CANON_UNIT, category, unopened, printed_date: it.printed_date || null, date_type: it.date_type || null };
   });
   const type = items.length > 1 ? "bundle" : "single";
   if (items.length < 1 || items.length > MAX_ITEMS) miss.push("List between 1 and 5 items.");
   items.forEach((it, i) => {
     const n = items.length > 1 ? `Item ${i + 1}${it.name ? ` (${it.name})` : ""}: ` : "";
     if (!it.name) miss.push(`${n}add a food name.`);
-    if (!(it.quantity > 0) || !Number.isFinite(it.quantity) || it.quantity > 999) miss.push(`${n}add an amount between 0 and 999.`);
-    else if (WHOLE_UNITS.includes(it.unit) && !Number.isInteger(it.quantity)) miss.push(`${n}use a whole number for ${it.unit}.`);
-    if (!UNITS.includes(it.unit)) miss.push(`${n}choose a unit.`);
+    const qe = qtyError(d.items[i].quantity); if (qe) miss.push(n ? `${n}${qe.replace(/^./, c => c.toLowerCase())}` : qe);
     if (!["produce", "shelf_stable"].includes(it.category)) miss.push(`${n}choose its condition.`);
     if (it.category === "shelf_stable" && it.unopened !== true) miss.push(`${n}packaged food must be unopened.`);
     if (!!it.printed_date !== !!it.date_type) miss.push(`${n}set both the printed date and its label, or neither.`);
+    const pc = printedCheck(it.printed_date, it.date_type, now);
+    pc.errors.forEach(e => miss.push(`${n}${e}`)); pc.warnings.forEach(w => warn.push(`${n}${w}`));
   });
-  const wf = String(d.wanted_food).trim(), wq = Number(d.wanted_quantity), wu = d.wanted_unit;
-  if (mode === "exchange") { if (!wf) miss.push("Say what food you'd like in return."); if (!(wq > 0)) miss.push("Add an amount for the food you'd like."); if (!UNITS.includes(wu)) miss.push("Choose a unit for the food you'd like."); }
+  const wf = String(d.wanted_food).trim(), wq = parseQty(d.wanted_quantity);
+  if (mode === "exchange") { if (!wf) miss.push("Say what food you'd like in return."); const qe = qtyError(d.wanted_quantity, "amount for the food you'd like"); if (qe) miss.push(qe); }
   if (!ZONES.includes(d.location)) miss.push("Choose a public pickup spot.");
   const ps = d.day && d.from ? toUtcIso(`${d.day}T${d.from}`) : null, pe = d.day && d.until ? toUtcIso(`${d.day}T${d.until}`) : null, dl = toUtcIso(d.deadline);
-  if (!d.day) miss.push("Pick a pickup day.");
-  if (!ps) miss.push("Set a pickup start time."); if (!pe) miss.push("Set a pickup end time."); if (!dl) miss.push('Set "Available until".');
-  if (ps && pe && new Date(pe) <= new Date(ps)) miss.push("The pickup end needs to be after the start.");
-  if (pe && dl && new Date(pe) > new Date(dl)) miss.push('"Available until" can\'t be earlier than the pickup end.');
-  if (pe && new Date(pe).getTime() <= now) miss.push("Pick a pickup time in the future.");
-  if (dl && new Date(dl).getTime() <= now) miss.push('"Available until" must be in the future.');
+  if (!d.day) { miss.push("Pick a pickup day."); if (!dl) miss.push('Set "Available until".'); }
+  else windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true }, now).forEach(e => miss.push(e));
   const allergens = String(d.allergens).trim(); if (!allergens) miss.push('List allergens, or write "Unknown".');
   if (!d.fresh) miss.push("Confirm the food's condition.");
   if (!d.storage_confirmed) miss.push("Confirm storage and allergens.");
   if (S.photoBusy) miss.push("Wait for the photo to finish uploading."); else if (!S.photo?.id) miss.push(S.photo ? "Upload your photo (tap Retry)." : "Add a photo of the actual food.");
-  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: mode === "exchange" ? wq : null, wanted_unit: mode === "exchange" ? wu : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, photo_id: S.photo?.id || null };
-  return { payload, key: JSON.stringify(payload), miss };
+  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: mode === "exchange" ? wq : null, wanted_unit: mode === "exchange" ? CANON_UNIT : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, photo_id: S.photo?.id || null };
+  return { payload, key: JSON.stringify(payload), miss, warn };
 }
 function approvalValid(d) { return !!(S.approval && S.user && S.approval.key === d.key && Date.now() < S.approval.exp && S.approval.photo_id === S.photo?.id); }
 function invalidateApproval(changed) {
@@ -352,13 +341,13 @@ function renderReviewPanel() {
   const checklist = d.miss.length
     ? `<div class="checklist"><p>Before Bob can check (${d.miss.length} to go)</p><ul>${d.miss.map(m => `<li>${esc(m)}</li>`).join("")}</ul></div>`
     : `<div class="checklist"><p class="ok">${icon("check", 18)}All required details are complete</p></div>`;
-  let status = "";
-  if (S.reviewing) status = `<div class="rs-checking"><span class="spin" aria-hidden="true"></span><span>Bob is checking your details and photo. Any edit cancels this check.</span></div>`;
-  else if (ok) { const mins = Math.max(0, Math.ceil((S.approval.exp - Date.now()) / 60000)); status = `<div class="rs-approved"><strong>Bob approved this listing.</strong> ${esc(S.approval.reason || "The photo matches your details.")} Publish by ${esc(new Date(S.approval.exp).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))} (about ${mins} min).</div>`; }
+  let status = d.warn.length ? `<div class="check-note"><p>Heads up</p><ul>${d.warn.map(w => `<li>${esc(w)}</li>`).join("")}</ul></div>` : "";
+  if (S.reviewing) status += `<div class="rs-checking"><span class="spin" aria-hidden="true"></span><span>Bob is checking your details and photo. Any edit cancels this check.</span></div>`;
+  else if (ok) { const mins = Math.max(0, Math.ceil((S.approval.exp - Date.now()) / 60000)); status += `<div class="rs-approved"><strong>Bob approved this listing.</strong> ${esc(S.approval.reason || "The photo matches your details.")} Publish by ${esc(new Date(S.approval.exp).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))} (about ${mins} min).</div>`; }
   else if (r.kind === "rejected" || r.kind === "error") {
     const checks = Array.isArray(r.checks) ? r.checks : r.checks && typeof r.checks === "object" ? Object.entries(r.checks).map(([k, v]) => `${k.replaceAll("_", " ")}: ${typeof v === "object" ? (v.message || v.reason || (v.passed ? "ok" : "needs attention")) : v}`) : [];
-    status = `<div class="rs-${r.kind}"><strong>${r.kind === "rejected" ? "Bob didn't approve this yet." : "The check couldn't finish."}</strong> ${esc(r.message || "")}${checks.length ? `<ul>${checks.map(c => `<li>${esc(typeof c === "string" ? c : c.message || c.reason || c.name || JSON.stringify(c))}</li>`).join("")}</ul>` : ""} Your entries are kept. Fix them and check again.</div>`;
-  } else if (r.message) status = `<div class="rs-checking">${esc(r.message)}</div>`;
+    status += `<div class="rs-${r.kind}"><strong>${r.kind === "rejected" ? "Bob didn't approve this yet." : "The check couldn't finish."}</strong> ${esc(r.message || "")}${checks.length ? `<ul>${checks.map(c => `<li>${esc(typeof c === "string" ? c : c.message || c.reason || c.name || JSON.stringify(c))}</li>`).join("")}</ul>` : ""} Your entries are kept. Fix them and check again.</div>`;
+  } else if (r.message) status += `<div class="rs-checking">${esc(r.message)}</div>`;
   const canCheck = S.user && !d.miss.length && !S.reviewing && !S.publishing;
   el.innerHTML = `${checklist}${status}
     <button type="button" class="btn btn-outline btn-block" data-action="review"${canCheck ? "" : " disabled"}>${S.reviewing ? '<span class="spin" aria-hidden="true"></span>Bob is checking…' : `${icon("sparkle", 18)}${ok ? "Check again with Bob" : "Check with Bob"}`}</button>
@@ -372,7 +361,7 @@ setInterval(() => { if (S.approval || S.reviewing) renderReviewPanel(); }, 1000)
 
 function fromApiItem(i) {
   const condition = i.category === "produce" ? "produce" : i.category === "shelf_stable" ? (i.unopened === true ? "shelf_stable" : i.unopened === false ? "opened" : "") : "";
-  return { name: i.name || "", quantity: i.quantity ?? "", unit: UNITS.includes(i.unit) ? i.unit : "", condition, printed_date: /^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "", date_type: DATE_TYPES[i.date_type] ? i.date_type : "" };
+  return { name: foldName(i.name || "", i.unit, i.quantity), quantity: i.quantity ?? "", condition, printed_date: /^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "", date_type: DATE_TYPES[i.date_type] ? i.date_type : "" };
 }
 async function doInterpret() {
   const text = String(S.share.text || "").trim();
@@ -447,7 +436,7 @@ function editListing(l, over = {}) {
   const items = itemsOf(l).slice(0, MAX_ITEMS).map(i => typeof i === "string" ? fromApiItem({ name: i }) : fromApiItem(i));
   d.items = items.length ? items : [emptyItem()];
   d.mode = over.mode || l.mode || "exchange";
-  d.wanted_food = l.wanted_food || ""; d.wanted_quantity = l.wanted_quantity ?? ""; d.wanted_unit = UNITS.includes(l.wanted_unit) ? l.wanted_unit : "";
+  d.wanted_food = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; d.wanted_quantity = l.wanted_quantity ?? "";
   d.location = ZONES.includes(l.location) ? l.location : "";
   d.day = dayPart(l.pickup_start); d.from = timePart(l.pickup_start); d.until = timePart(l.pickup_end); d.deadline = toLocalInput(l.deadline);
   d.allergens = l.allergens || "";
@@ -594,7 +583,7 @@ function viewImpact() {
   const d = S.impact, q = d.quantities || [];
   const food = q.filter(x => x.action !== "compost"), comp = q.filter(x => x.action === "compost");
   const total = (d.completed_trades || 0) + (d.completed_giveaways || 0) + (d.donations_reported || 0) + (d.compost_reported || 0);
-  const row = x => `<div class="qty-row"><span>${esc(cap(x.name))}</span><span>${esc(x.quantity)} ${esc(unitText(x.unit, x.quantity))}${x.action === "donation" ? " · donated" : ""}</span></div>`;
+  const row = x => `<div class="qty-row"><span>${esc(itemText(x))}</span>${x.action === "donation" ? "<span>Donated</span>" : ""}</div>`;
   return head + (total ? "" : `<div class="info">No completed handoffs yet. Every confirmed pickup shows up here.</div>`) +
     `<div class="stats">
       <div class="stat lead"><b>${esc(d.completed_trades ?? 0)}</b><span>Swaps completed</span></div>
@@ -676,27 +665,33 @@ function openListing(id) {
     ${actions}
     ${!owner ? `<div class="text-actions" style="justify-content:center"><button type="button" class="link" data-action="report-user" data-id="${esc(l.user_id)}" style="color:var(--muted)">Report</button><button type="button" class="link" data-action="block-user" data-id="${esc(l.user_id)}" style="color:var(--muted)">Block user</button></div>` : ""}`);
 }
+function giveawayBounds(l) {
+  const lim = pickupLimits(), lo = Math.max(lim.min, new Date(l.pickup_start).getTime() || lim.min);
+  const hi = Math.min(lim.max, ...[l.pickup_end, l.deadline].map(v => new Date(v).getTime()).filter(Number.isFinite));
+  return { min: toLocalInput(Math.ceil(lo / 60000) * 60000), max: toLocalInput(hi) };
+}
 function giveawayBody(l, err = "", busy = false, vals = {}) {
-  return `<p style="margin:0;font-size:15px;line-height:1.45">${esc(l.name || "The owner")} is free <b>${esc(windowText(l.pickup_start, l.pickup_end))}</b> at <b>${esc(l.location)}</b>. Pick a time that overlaps.</p>
+  const gb = giveawayBounds(l);
+  return `<p style="margin:0;font-size:15px;line-height:1.45">${esc(l.name || "The owner")} is free <b>${esc(windowText(l.pickup_start, l.pickup_end))}</b> at <b>${esc(l.location)}</b>. Pick a time inside that window.</p>
     <form id="giveaway-form" data-id="${esc(l.id)}" class="sheet-body" novalidate><div class="group">
       <div class="row"><label for="g-zone">Pickup spot</label><select id="g-zone" name="location">${zoneOptions(vals.location ?? (ZONES.includes(l.location) ? l.location : ""), "Choose")}</select></div>
-      <div class="row"><label for="g-from">From</label><input id="g-from" name="pickup_start" type="datetime-local" value="${esc(vals.pickup_start ?? toLocalInput(l.pickup_start))}"></div>
-      <div class="row"><label for="g-until">Until</label><input id="g-until" name="pickup_end" type="datetime-local" value="${esc(vals.pickup_end ?? toLocalInput(l.pickup_end))}"></div>
+      <div class="row"><label for="g-from">From</label><input id="g-from" name="pickup_start" type="datetime-local" min="${gb.min}" max="${gb.max}" value="${esc(vals.pickup_start ?? gb.min)}"></div>
+      <div class="row"><label for="g-until">Until</label><input id="g-until" name="pickup_end" type="datetime-local" min="${gb.min}" max="${gb.max}" value="${esc(vals.pickup_end ?? gb.max)}"></div>
     </div>${sheetError(err)}
     <button type="submit" class="btn btn-primary btn-block"${busy ? " disabled" : ""}>${busy ? '<span class="spin" aria-hidden="true"></span>Sending…' : "Send request"}</button>
     <p class="foot" style="margin:0">The owner decides who gets it.</p></form>`;
 }
 function openRequestForm() {
+  const lim = pickupLimits(), rng = `min="${lim.minInput}" max="${lim.maxInput}"`;
   openSheet("Post a food request", `<p class="foot" style="margin:0 4px">One food, with an amount and the times you can pick up. We'll notify you when someone nearby lists it.</p>
     <form id="request-form" class="sheet-body" novalidate><div class="group">
-      <div class="row"><label for="rq-item">Food</label><input id="rq-item" name="item" placeholder="Like rice" autocomplete="off"></div>
-      <div class="row"><label for="rq-qty">Amount</label><input id="rq-qty" name="quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="1"></div>
-      <div class="row"><label for="rq-unit">Unit</label><select id="rq-unit" name="unit">${unitOptions("")}</select></div></div>
+      <div class="row"><label for="rq-item">Food</label><input id="rq-item" name="item" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
+      <div class="row"><label for="rq-qty">Quantity</label><input id="rq-qty" name="quantity" ${QTY_ATTRS} placeholder="1"></div></div>
     <div class="group">
       <div class="row"><label for="rq-zone">Pickup spot</label><select id="rq-zone" name="location">${zoneOptions("", "Choose")}</select></div>
-      <div class="row"><label for="rq-from">Pickup from</label><input id="rq-from" name="pickup_start" type="datetime-local"></div>
-      <div class="row"><label for="rq-until">Pickup until</label><input id="rq-until" name="pickup_end" type="datetime-local"></div>
-      <div class="row"><label for="rq-deadline">Needed by</label><input id="rq-deadline" name="deadline" type="datetime-local"></div></div>
+      <div class="row"><label for="rq-from">Pickup from</label><input id="rq-from" name="pickup_start" type="datetime-local" ${rng}></div>
+      <div class="row"><label for="rq-until">Pickup until</label><input id="rq-until" name="pickup_end" type="datetime-local" ${rng}></div>
+      <div class="row"><label for="rq-deadline">Needed by</label><input id="rq-deadline" name="deadline" type="datetime-local" ${rng}></div></div>
     <div id="rq-err"></div><button type="submit" class="btn btn-primary btn-block">Post request</button></form>`);
 }
 function openRate(body, who) {
@@ -1004,7 +999,16 @@ function onBind(e) {
   const val = el.type === "checkbox" ? el.checked : el.value;
   const keys = path.split("."); let o = S; keys.slice(0, -1).forEach(k => { o = o[k]; }); o[keys.at(-1)] = val;
   if (!path.startsWith("draft.")) return;
+  // An explicit Clear is a user choice too; do not auto-fill it again.
   if (path === "draft.deadline") S.dtTouched = true;
+  if (path === "draft.day") {
+    const lim = pickupLimits();
+    ["#f-from", "#f-until"].forEach(sel => {
+      const input = $(sel); if (!input) return;
+      input.min = val === lim.minDay ? lim.minInput.slice(11) : "00:00";
+      input.max = val === lim.maxDay ? lim.maxInput.slice(11) : "23:59";
+    });
+  }
   if ((path === "draft.day" || path === "draft.until") && !S.dtTouched && S.draft.day && S.draft.until) {
     S.draft.deadline = `${S.draft.day}T${S.draft.until}`; const dl = $("#f-deadline"); if (dl) dl.value = S.draft.deadline;
   }
@@ -1013,7 +1017,7 @@ function onBind(e) {
   invalidateApproval(true);
 }
 document.addEventListener("input", onBind);
-document.addEventListener("change", e => { if (e.target.type === "checkbox" || e.target.tagName === "SELECT" || e.target.dataset?.rerender) onBind(e); });
+document.addEventListener("change", e => { if (e.target.type === "checkbox" || e.target.tagName === "SELECT" || e.target.dataset?.rerender || /^(date|time|datetime-local|number)$/.test(e.target.type)) onBind(e); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
 
 document.addEventListener("submit", async e => {
@@ -1041,20 +1045,21 @@ document.addEventListener("submit", async e => {
     const l = findListing(f.dataset.id), vals = { location: f.location.value, pickup_start: f.pickup_start.value, pickup_end: f.pickup_end.value };
     const s = toUtcIso(vals.pickup_start), en = toUtcIso(vals.pickup_end);
     if (!vals.location || !s || !en) return setSheetBody(giveawayBody(l, "Choose a pickup spot and an exact time window.", false, vals));
-    if (new Date(en) <= new Date(s)) return setSheetBody(giveawayBody(l, "The end time needs to be after the start.", false, vals));
+    const ge = windowErrors({ start: s, end: en, bound: { start: l.pickup_start, end: l.pickup_end, deadline: l.deadline } });
+    if (ge.length) return setSheetBody(giveawayBody(l, ge.join(" "), false, vals));
     setSheetBody(giveawayBody(l, "", true, vals));
     try { await post(`/listings/${encodeURIComponent(l.id)}/requests`, { pickup_start: s, pickup_end: en, location: vals.location }); closeSheet(); toast(`Request sent. ${l.name || "The owner"} decides.`); S.actSeg = "getting"; refreshActivity(); }
     catch (er) { setSheetBody(giveawayBody(l, er.message, false, vals)); }
   }
   if (f.id === "request-form") {
     e.preventDefault();
-    const q = Number(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value), errEl = $("#rq-err");
-    const err = !f.item.value.trim() || !(q > 0) || !f.unit.value ? "Add one food, an amount above zero and a unit."
-      : !f.location.value || !ps || !pe || !dl ? "Choose a pickup spot, a pickup window and a needed-by time."
-      : new Date(pe) <= new Date(ps) ? "The pickup end needs to be after the start." : "";
+    const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value), errEl = $("#rq-err");
+    const err = !f.item.value.trim() ? "Add the food you're looking for." : qtyError(f.quantity.value)
+      || (!f.location.value || !ps || !pe || !dl ? "Choose a pickup spot, a pickup window and a needed-by time."
+      : windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true, labels: { deadline: "Needed by" } }).join(" "));
     if (err) { errEl.innerHTML = sheetError(err); return; }
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
-    try { await post("/requests", { items: [f.item.value.trim()], quantity: q, unit: f.unit.value, location: f.location.value, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ }); closeSheet(); toast("Request posted. We'll let you know when it's listed nearby."); S.actSeg = "getting"; refreshActivity(); }
+    try { await post("/requests", { items: [f.item.value.trim()], quantity: q, unit: CANON_UNIT, location: f.location.value, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ }); closeSheet(); toast("Request posted. We'll let you know when it's listed nearby."); S.actSeg = "getting"; refreshActivity(); }
     catch (er) { btn.disabled = false; errEl.innerHTML = sheetError(er.message); }
   }
 });

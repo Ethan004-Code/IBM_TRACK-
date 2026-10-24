@@ -25,6 +25,9 @@ export const ListingDraftListingType = {
   bundle: 'bundle',
 } as const;
 
+/**
+ * Count-only forms send each; other values remain for historical compatibility.
+ */
 export type FoodItemUnit = typeof FoodItemUnit[keyof typeof FoodItemUnit];
 
 
@@ -65,19 +68,39 @@ export const FoodItemDateType = {
 export interface FoodItem {
   name: string;
   /**
-     * @maximum 999
-     * @exclusiveMinimum 0
+     * @minimum 1
+     * @maximum 99
      */
   quantity: number;
-  unit: FoodItemUnit;
+  /** Count-only forms send each; other values remain for historical compatibility. */
+  unit?: FoodItemUnit;
   category: FoodItemCategory;
   /** @nullable */
   unopened?: boolean | null;
-  /** @nullable */
+  /**
+     * Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns.
+     * @nullable
+     */
   printed_date?: string | null;
   /** @nullable */
   date_type?: FoodItemDateType;
 }
+
+export type ListingDraftWantedUnit = typeof ListingDraftWantedUnit[keyof typeof ListingDraftWantedUnit];
+
+
+export const ListingDraftWantedUnit = {
+  each: 'each',
+  g: 'g',
+  kg: 'kg',
+  oz: 'oz',
+  lb: 'lb',
+  bag: 'bag',
+  can: 'can',
+  box: 'box',
+  bottle: 'bottle',
+  package: 'package',
+} as const;
 
 export interface ListingDraft {
   mode: ListingDraftMode;
@@ -88,11 +111,18 @@ export interface ListingDraft {
      */
   item_details: FoodItem[];
   wanted_food?: string;
+  /**
+     * @minimum 1
+     * @maximum 99
+     */
   wanted_quantity?: number;
-  wanted_unit?: string;
+  wanted_unit?: ListingDraftWantedUnit;
   location: string;
+  /** Timezone required; now through one calendar year ahead, strictly before pickup_end. */
   pickup_start: string;
+  /** After pickup_start, no later than deadline or one calendar year ahead. */
   pickup_end: string;
+  /** Available until; no earlier than pickup_end and no later than one calendar year ahead. */
   deadline: string;
   timezone: string;
   fresh: boolean;

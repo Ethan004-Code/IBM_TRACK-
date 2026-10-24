@@ -57,6 +57,16 @@
 
 1. Sign up through the website using two pilot email addresses; follow confirmation links if the Supabase project requires them.
 2. Sign in within the embedded preview, reload, and check that the session remains active.
-3. Use the Bob button with a fresh description, correct the extracted fields, and publish only after resolving missing quantities/units/dates.
+3. Use the Bob button with a fresh description, correct the extracted fields, and publish only after resolving missing quantities/names/dates.
 4. Complete an exchange and giveaway using each account's own buttons; ensure the UI refreshes correctly and displays partner confirmation state.
 5. Review fallback options and verify donation/compost reporting controls require actual completed drop-off confirmations.
+
+## Count-only quantities and bounded dates
+
+- Current and legacy forms use whole-number quantities 1–99, with units included in food names. Historical units retain their meaning on cards, details, editing and Impact; matching recognizes the explicit historical unit spelling without converting physical units.
+- Server pickup validation requires now ≤ start < end ≤ deadline ≤ one calendar year ahead. Giveaway requests must be wholly inside both the listing's pickup window and deadline; partial overlaps are rejected rather than silently clipped.
+- Printed dates accept two calendar years back through ten ahead in the listing timezone. Past Best by warns and remains discoverable; past Use by and Expiration are rejected. Leap-day calendar bounds clamp to February 28 consistently.
+- Verification: 67 no-network Python rule/review/destination regressions, 10 Node quantity/date-helper tests, generated API library typechecks and the Vite production build passed.
+- Browser checks at 390×844 passed for quantity errors, populated input bounds, simulated picker min/max bypass, change-only Clear events surviving a form rerender, printed-date warnings/errors, and no horizontal overflow.
+- Request-sheet browser checks used isolated network fixtures, not real accounts or database writes. Invalid/out-of-window/cleared times made zero POSTs. One valid request used a mocked 201 and verified the exact UTC payload and visible confirmation.
+- The initial browser run overlapped source edits, causing Vite page reloads and resetting the unsaved editor. With source frozen, a 17-second stability check preserved the manual draft through background polling. These were iPhone-size browser checks, not physical iPhone/Safari testing.

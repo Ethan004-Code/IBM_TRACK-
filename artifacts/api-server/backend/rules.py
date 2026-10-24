@@ -36,9 +36,34 @@ def text(value, label, limit=80):
 
 
 def quantity(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value <= 999:
-        raise BadRequest("Enter an explicit quantity greater than 0 and at most 999.")
-    return value
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value) or not 1 <= value <= 99 or int(value) != value):
+        raise BadRequest("Enter a whole-number quantity from 1 to 99.")
+    return int(value)
+
+
+def calendar_years(value, years):
+    """Calendar-year bounds, clamping February 29 to February 28."""
+    try:
+        return value.replace(year=value.year + years)
+    except ValueError:
+        return value.replace(year=value.year + years, day=28)
+
+
+def pickup_bounds(listing=None, stamp=None):
+    stamp = stamp or now()
+    lower, upper = stamp, calendar_years(stamp, 1)
+    if listing is not None:
+        lower = max(lower, instant(listing["pickup_start"]))
+        upper = min(upper, instant(listing["pickup_end"]), instant(listing["deadline"]))
+    return lower, upper
+
+
+def validate_pickup_range(start, end, deadline, listing=None):
+    lower, upper = pickup_bounds(listing)
+    if not (lower <= start < end <= deadline <= upper):
+        raise BadRequest(f"Pick a time between {lower.isoformat()} and {upper.isoformat()}. "
+                         "The end must be after the start and no later than Available until.")
 
 
 def norm(value):
@@ -54,8 +79,7 @@ def zone(value):
 
 def window(data):
     start, end, deadline = (instant(data.get(key)) for key in ("pickup_start", "pickup_end", "deadline"))
-    if not now() < end <= deadline or start >= end or deadline <= now():
-        raise BadRequest("Pickup must have a positive future overlap and end no later than the availability deadline.")
+    validate_pickup_range(start, end, deadline)
     return start.isoformat(), end.isoformat(), deadline.isoformat()
 
 
@@ -64,11 +88,9 @@ def eligible(item, tz="America/Los_Angeles"):
         raise BadRequest("Each food item needs editable details.")
     name = text(item.get("name"), "a food name")
     amount = quantity(item.get("quantity"))
-    unit = item.get("unit")
+    unit = item.get("unit") or "each"
     if unit not in UNITS:
         raise BadRequest("Choose an explicit supported unit. No automatic unit conversions.")
-    if unit in {"each", "bag", "can", "box", "bottle", "package"} and int(amount) != amount:
-        raise BadRequest("Whole items and unopened packages need whole-number quantities.")
     category = item.get("category")
     if category not in {"produce", "shelf_stable"}:
         raise BadRequest("Only whole produce and unopened shelf-stable packaged food are eligible.")
@@ -83,8 +105,12 @@ def eligible(item, tz="America/Los_Angeles"):
     if printed:
         try:
             parsed = date.fromisoformat(printed)
-            if parsed < datetime.now(ZoneInfo(tz)).date():
-                raise BadRequest("This listing is beyond the pilot's printed-date eligibility cutoff. A past date is not proof of spoilage.")
+            today = now().astimezone(ZoneInfo(tz)).date()
+            lower, upper = calendar_years(today, -2), calendar_years(today, 10)
+            if not lower <= parsed <= upper:
+                raise BadRequest(f"Pick a printed date between {lower.isoformat()} and {upper.isoformat()}.")
+            if parsed < today and kind in {"use_by", "expiration"}:
+                raise BadRequest("Use by and Expiration dates cannot be in the past.")
         except (ValueError, TypeError):
             raise BadRequest("Printed dates must use YYYY-MM-DD.")
     return dict(name=name, quantity=amount, unit=unit, category=category,
@@ -102,9 +128,11 @@ def available(listing):
     try:
         if instant(listing["deadline"]) <= now() or instant(listing["pickup_end"]) <= now():
             return False
-        local_date = datetime.now(ZoneInfo(listing.get("timezone", "America/Los_Angeles"))).date()
+        local_date = now().astimezone(ZoneInfo(listing.get("timezone", "America/Los_Angeles"))).date()
         details = listing.get("item_details")
-        return bool(details) and all(not i.get("printed_date") or date.fromisoformat(i["printed_date"]) >= local_date for i in details)
+        return bool(details) and all(not i.get("printed_date")
+                                    or i.get("date_type") in {"best_by", "sell_by"}
+                                    or date.fromisoformat(i["printed_date"]) >= local_date for i in details)
     except (BadRequest, KeyError, ValueError):
         # Legacy rows without explicit structured pickup/units cannot be matched.
         return False
@@ -122,10 +150,27 @@ def overlap(a, b):
         return None
 
 
+def counted_food(name, unit="each"):
+    """Same count identity in old unit columns and new unit-in-name forms.
+
+    Only recognize the explicit legacy unit vocabulary; never convert weights
+    or infer sizes, synonyms, or singular/plural ingredient names.
+    """
+    name, unit = norm(name), unit or "each"
+    plurals = {"bags": "bag", "cans": "can", "boxes": "box",
+               "bottles": "bottle", "packages": "package"}
+    match = re.fullmatch(r"(bag|bags|can|cans|box|boxes|bottle|bottles|package|packages|g|kg|oz|lb) of (.+)", name)
+    if match:
+        encoded_unit = plurals.get(match[1], match[1])
+        if unit in {"each", encoded_unit}:
+            return encoded_unit, match[2]
+    return unit, name
+
+
 def fulfills(listing, wanted):
     wanted_name, unit = wanted.get("wanted_food", ""), wanted.get("wanted_unit")
     amount = wanted.get("wanted_quantity")
-    return any(norm(i["name"]) == norm(wanted_name) and i["unit"] == unit
+    return any(counted_food(i["name"], i.get("unit")) == counted_food(wanted_name, unit)
                and amount is not None and i["quantity"] >= amount
                for i in listing.get("item_details", []))
 
@@ -413,6 +458,9 @@ def install_rules(app, legacy):
         data = request.get_json(silent=True) or {}
         recipient = dict(location=zone(data.get("location")), pickup_start=data.get("pickup_start"),
                          pickup_end=data.get("pickup_end"), deadline=listing["deadline"])
+        start, end = instant(recipient["pickup_start"]), instant(recipient["pickup_end"])
+        # Do not silently clip an invalid request to an overlapping window.
+        validate_pickup_range(start, end, end, listing)
         pickup = overlap(listing, recipient)
         if not pickup:
             raise BadRequest("Your pickup zone and exact availability must overlap the owner's window.")
@@ -445,7 +493,7 @@ def install_rules(app, legacy):
             raise BadRequest("Choose exactly one wanted ingredient for a standalone request.")
         name = text(names[0], "one wanted ingredient")
         amount = quantity(data.get("quantity"))
-        unit = data.get("unit")
+        unit = data.get("unit") or "each"
         if unit not in UNITS:
             raise BadRequest("Choose an explicit quantity unit.")
         start, end, due = window(data)

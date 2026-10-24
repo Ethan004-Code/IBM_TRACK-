@@ -1,9 +1,13 @@
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, toLocalInput as localStr } from "./limits.js";
 
 const API = "/api";
 const ZONES = ["Library steps","Community Center","Neighborhood Park","Student Union","Campus Green","Dining Commons"];
-const UNITS = ["each","g","kg","oz","lb","bag","can","box","bottle","package"];
+const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
+function setQtyAttrs(el) { Object.assign(el, {type:"number", min:String(QTY_MIN), max:String(QTY_MAX), step:"1", inputMode:"numeric"}); el.setAttribute("pattern", "[0-9]*"); }
+function setRange(el, lo, hi) { if (el) { el.min = lo; el.max = hi; } }
+function applyPickupLimits(root) { const lim = pickupLimits(); root.querySelectorAll('input[type="datetime-local"]').forEach(el => setRange(el, lim.minInput, lim.maxInput)); }
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const $ = s => document.querySelector(s);
 const listingsEl = $("#listings"), form = $("#listing-form"), notice = $("#form-notice"), offerArea = $("#offer-area"), toast = $("#toast");
@@ -26,7 +30,7 @@ function toUtcIso(v) { if (!v) return null; const d = new Date(v); return Number
 function fmt(v) { const d = new Date(v); return !v || Number.isNaN(d.getTime()) ? "Not set" : d.toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
 function windowText(a, b) { return a && b ? `${fmt(a)} to ${fmt(b)}` : "No window set"; }
 function itemsOf(l) { if (Array.isArray(l?.item_details) && l.item_details.length) return l.item_details; if (Array.isArray(l?.items)) return l.items.map(x => typeof x === "string" ? {name:x, quantity:l.quantities?.[x] ?? null, unit:null} : x); return []; }
-function itemText(i) { if (typeof i === "string") return esc(i); const q = i.quantity != null ? `${i.quantity}${i.unit ? " " + i.unit : ""} ` : ""; return esc(q + i.name) + (i.printed_date ? ` <small>(${esc(i.date_type || "date")}: ${esc(i.printed_date)})</small>` : ""); }
+function itemText(i) { if (typeof i === "string") return esc(i); const q = i.quantity != null ? `${i.quantity} ` : ""; return esc(q + foldName(i.name, i.unit, i.quantity)) + (i.printed_date ? ` <small>(${esc(i.date_type || "date")}: ${esc(i.printed_date)})</small>` : ""); }
 function itemList(arr) { return (arr || []).map(itemText).join(", ") || "None listed"; }
 function status(s) { return `<span class="status ${esc(s)}">${esc(String(s || "").replaceAll("_"," "))}</span>`; }
 function isMine(listingId) { return myListings.some(l => l.id === listingId); }
@@ -52,7 +56,7 @@ function renderListings() {
   if (!visible.length) { listingsEl.innerHTML = `<div class="empty-listings">${loaded ? "No open listings match these filters. Be the first to share." : "Loading listings..."}</div>`; return; }
   listingsEl.innerHTML = visible.map(l => {
     const items = itemsOf(l), give = l.mode === "giveaway", owner = sessionUser && sessionUser.id === l.user_id;
-    const wanted = l.wanted_food ? `${l.wanted_quantity ?? ""} ${l.wanted_unit ?? ""} ${l.wanted_food}`.trim() : (l.wants || []).join(", ");
+    const wanted = l.wanted_food ? `${l.wanted_quantity ?? ""} ${foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity)}`.trim() : (l.wants || []).join(", ");
     return `<article class="listing-card"><div class="card-art ${give ? "" : "orange"}">${l.photo_id ? `<img class="card-photo" src="${API}/listing-photos/${encodeURIComponent(l.photo_id)}" alt="Photo of ${esc(items.map(i => i.name || i).join(", "))}" loading="lazy" onerror="this.remove()">` : ""}<span class="urgency ${give ? "gift-tag" : ""}">${give ? "Free giveaway" : "Exchange"}</span><span class="produce" aria-hidden="true">${art(items)}</span></div><div class="card-body"><div class="owner-row"><span class="owner"><span class="avatar" aria-hidden="true">${esc((l.name || "C").charAt(0).toUpperCase())}</span>${esc(l.name || "Community member")} &middot; ${esc(l.location)}</span><span class="rating">${l.rating ? Number(l.rating).toFixed(1) + " rating" : "New"}</span></div><div class="bundle-label">${items.length > 1 ? `BUNDLE &middot; ${items.length} ITEMS` : "SINGLE ITEM"}</div><div class="chips">${items.map(i => `<span class="chip">${itemText(i)}</span>`).join("")}</div>${!give && wanted ? `<div class="wants-label">HOPING TO FIND</div><div class="chips wants"><span class="chip">${esc(wanted)}</span></div>` : ""}<p class="deadline">Pickup ${esc(windowText(l.pickup_start, l.pickup_end))}</p>${l.allergens ? `<p class="deadline">Allergens: ${esc(l.allergens)}</p>` : ""}<div class="card-bottom"><span class="deadline">Until <strong>${esc(fmt(l.deadline))}</strong></span><button class="swap-button" data-act="${owner ? "manage" : give ? "giveaway" : "exchange"}" data-id="${esc(l.id)}">${owner ? "Next steps" : give ? "Request item" : "Match my listing"}</button></div>${!owner ? `<div class="trust-actions"><button data-report="${esc(l.user_id)}">Report</button><button data-block="${esc(l.user_id)}">Block user</button></div>` : ""}</div></article>`;
   }).join("");
 }
@@ -80,7 +84,7 @@ async function refreshImpact() {
     $("#trades-done").textContent = d.completed_trades ?? 0; $("#giveaways-done").textContent = d.completed_giveaways ?? 0;
     $("#donated-items").textContent = d.donations_reported ?? 0; $("#compost-items").textContent = d.compost_reported ?? 0;
     const q = d.quantities || [], food = q.filter(x => x.action !== "compost"), comp = q.filter(x => x.action === "compost");
-    const li = arr => arr.map(x => `<li>${esc(x.quantity)} ${esc(x.unit)} ${esc(x.name)} <small>(${esc(String(x.action).replaceAll("_"," "))}${x.action === "donation" || x.action === "compost" ? ", user-reported" : ""})</small></li>`).join("");
+    const li = arr => arr.map(x => `<li>${esc(x.quantity)} ${esc(foldName(x.name, x.unit, x.quantity))} <small>(${esc(String(x.action).replaceAll("_"," "))}${x.action === "donation" || x.action === "compost" ? ", user-reported" : ""})</small></li>`).join("");
     $("#impact-detail").innerHTML = `${food.length ? `<strong>Food shared for people</strong><ul>${li(food)}</ul>` : ""}${comp.length ? `<strong>Composted (separate, user-reported)</strong><ul>${li(comp)}</ul>` : ""}${d.note ? `<p>${esc(d.note)}</p>` : ""}`;
   } catch { $("#impact-detail").textContent = "Impact ledger unavailable right now."; }
 }
@@ -104,7 +108,7 @@ function renderActivity() {
   const offerHtml = myOffers.map(offerCard).join("");
   const gHtml = giveaways.map(giveawayCard).join("");
   $("#my-handoffs").innerHTML = offerHtml + gHtml || `<p class="muted">No handoffs yet.</p>`;
-  $("#my-requests").innerHTML = standalone.length ? standalone.map(r => `<div class="record"><strong>${esc(r.quantity ?? "")} ${esc(r.unit ?? "")} ${esc((r.items || []).join(", ") || r.item || "")}</strong>${status(r.status || "open")}<p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fmt(r.deadline))}</p></div>`).join("") : `<p class="muted">No requests posted.</p>`;
+  $("#my-requests").innerHTML = standalone.length ? standalone.map(r => `<div class="record"><strong>${esc(r.quantity ?? "")} ${esc(foldName((r.items || []).join(", ") || r.item || "", r.unit, r.quantity))}</strong>${status(r.status || "open")}<p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><p>Needed by ${esc(fmt(r.deadline))}</p></div>`).join("") : `<p class="muted">No requests posted.</p>`;
 }
 function uid(x) { return x?.user_id || x?.id || x; }
 function offerCard(o) {
@@ -256,14 +260,18 @@ async function openFallback(id) {
 let giveawayTarget = null;
 function openGiveawayDialog(id) {
   const l = listings.find(x => x.id === id); giveawayTarget = id; const f = $("#giveaway-form"); f.reset(); $("#gd-notice").hidden = true;
-  $("#gd-summary").innerHTML = l ? `${itemList(itemsOf(l))}. Owner is available at ${esc(l.location)}, ${esc(windowText(l.pickup_start, l.pickup_end))}. Choose a window that overlaps.` : "";
+  $("#gd-summary").innerHTML = l ? `${itemList(itemsOf(l))}. Owner is available at ${esc(l.location)}, ${esc(windowText(l.pickup_start, l.pickup_end))}. Choose a window inside it.` : "";
   if (l && ZONES.includes(l.location)) f.location.value = l.location;
+  if (l) { const lim = pickupLimits(), lo = Math.max(lim.min, new Date(l.pickup_start).getTime() || lim.min), hi = Math.min(lim.max, ...[l.pickup_end, l.deadline].map(v => new Date(v).getTime()).filter(Number.isFinite));
+    [f.pickup_start, f.pickup_end].forEach(el => setRange(el, localStr(new Date(Math.ceil(lo / 60000) * 60000)), localStr(new Date(hi)))); }
   $("#giveaway-dialog").showModal();
 }
 $("#giveaway-form").addEventListener("submit", async e => {
   e.preventDefault(); const f = e.currentTarget, s = toUtcIso(f.pickup_start.value), en = toUtcIso(f.pickup_end.value), n = $("#gd-notice");
   if (!f.location.value || !s || !en) return setNotice(n, "Choose a zone and an exact pickup window.");
-  if (new Date(en) <= new Date(s)) return setNotice(n, "Pickup end must be after the start.");
+  const gl = listings.find(x => x.id === giveawayTarget);
+  const ge = windowErrors({start:s, end:en, bound:gl ? {start:gl.pickup_start, end:gl.pickup_end, deadline:gl.deadline} : null});
+  if (ge.length) return setNotice(n, ge.join(" "));
   try { await post(`/listings/${encodeURIComponent(giveawayTarget)}/requests`, {pickup_start:s, pickup_end:en, location:f.location.value}); $("#giveaway-dialog").close(); showToast("Request sent. The owner decides."); refreshActivity(); }
   catch (er) { setNotice(n, er.message); }
 });
@@ -272,8 +280,8 @@ document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.close
 /* Listing form */
 function itemRow(i = {}) {
   const n = $("#item-rows").children.length + 1, row = document.createElement("fieldset"); row.className = "item-row";
-  row.innerHTML = `<legend>Item ${n}</legend><button type="button" class="mini-btn danger remove-item">Remove</button><div class="form-row"><label class="wide">Food name<input data-f="name" required value="${esc(i.name ?? "")}"></label><label>Quantity<input data-f="quantity" type="number" min="0.01" step="any" required value="${esc(i.quantity ?? "")}"></label><label>Unit<select data-f="unit" required><option value="">Choose</option>${UNITS.map(u => `<option>${u}</option>`).join("")}</select></label></div><div class="form-row"><label>Category<select data-f="category" required><option value="">Choose</option><option value="produce">Whole produce</option><option value="shelf_stable">Unopened shelf-stable</option></select></label><label>Unopened?<select data-f="unopened"><option value="">Not applicable</option><option value="true">Yes, unopened</option><option value="false">No</option></select></label></div><div class="form-row"><label>Printed date <span class="optional">(optional)</span><input data-f="printed_date" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "")}"></label><label>Date label<select data-f="date_type"><option value="">None</option><option value="best_by">Best by</option><option value="use_by">Use by</option><option value="sell_by">Sell by</option><option value="expiration">Expiration</option></select></label></div>`;
-  row.querySelector("[data-f=unit]").value = UNITS.includes(i.unit) ? i.unit : ""; row.querySelector("[data-f=category]").value = i.category ?? ""; row.querySelector("[data-f=unopened]").value = i.unopened == null ? "" : String(i.unopened);
+  row.innerHTML = `<legend>Item ${n}</legend><button type="button" class="mini-btn danger remove-item">Remove</button><div class="form-row"><label class="wide">Food name<input data-f="name" required placeholder="${ITEM_PLACEHOLDER}" value="${esc(foldName(i.name ?? "", i.unit, i.quantity))}"></label><label>Quantity<input data-f="quantity" ${QTY_ATTRS} required value="${esc(i.quantity ?? "")}"></label></div><div class="form-row"><label>Category<select data-f="category" required><option value="">Choose</option><option value="produce">Whole produce</option><option value="shelf_stable">Unopened shelf-stable</option></select></label><label>Unopened?<select data-f="unopened"><option value="">Not applicable</option><option value="true">Yes, unopened</option><option value="false">No</option></select></label></div><div class="form-row"><label>Printed date <span class="optional">(optional)</span><input data-f="printed_date" type="date" min="${printedLimits().min}" max="${printedLimits().max}" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "")}"></label><label>Date label<select data-f="date_type"><option value="">None</option><option value="best_by">Best by</option><option value="use_by">Use by</option><option value="sell_by">Sell by</option><option value="expiration">Expiration</option></select></label></div>`;
+  row.querySelector("[data-f=category]").value = i.category ?? ""; row.querySelector("[data-f=unopened]").value = i.unopened == null ? "" : String(i.unopened);
   if (i.date_type) { const dt = row.querySelector("[data-f=date_type]"); dt.value = i.date_type; if (dt.value !== i.date_type) dt.value = ""; }
   row.querySelector(".remove-item").onclick = () => { row.remove(); renumber(); onFormChanged(); };
   $("#item-rows").append(row); renumber();
@@ -308,48 +316,45 @@ $("#interpret-button").onclick = async () => {
 /* Listing review + publish (Bob approval required before every new or updated listing) */
 const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 1024 * 1024;
 let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen = 0, reviewing = false, publishing = false, editingId = null, reviewState = {kind:"idle"};
-$("#wanted-unit").innerHTML = `<option value="">Choose</option>` + UNITS.map(u => `<option>${u}</option>`).join("");
+form.wanted_food.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(form.wanted_quantity);
+{ const rf = $("#request-form"); rf.item.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(rf.quantity); rf.addEventListener("focusin", () => applyPickupLimits(rf)); applyPickupLimits(rf); }
 function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function photoUrl(p) { return p.local_url || p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
 
 function readDraft() {
-  const miss = [], type = $("#listing-type").value, mode = $("#listing-mode").value, now = Date.now();
+  const miss = [], warn = [], type = $("#listing-type").value, mode = $("#listing-mode").value, now = Date.now();
   if (!["exchange","giveaway"].includes(mode)) miss.push("Choose exchange or giveaway.");
   if (!["single","bundle"].includes(type)) miss.push("Choose single item or bundle.");
-  const items = [...$("#item-rows").children].map(r => { const g = f => r.querySelector(`[data-f=${f}]`).value.trim(); const u = g("unopened"); return {name:g("name"), quantity:Number(g("quantity")), unit:g("unit"), category:g("category") || null, unopened:u === "" ? null : u === "true", printed_date:g("printed_date") || null, date_type:g("date_type") || null}; });
+  const items = [...$("#item-rows").children].map(r => { const g = f => r.querySelector(`[data-f=${f}]`).value.trim(); const u = g("unopened"); return {name:g("name"), quantity:parseQty(g("quantity")), rawQty:g("quantity"), unit:CANON_UNIT, category:g("category") || null, unopened:u === "" ? null : u === "true", printed_date:g("printed_date") || null, date_type:g("date_type") || null}; });
   if (type === "single" && items.length !== 1) miss.push("A single listing needs exactly one item.");
   if (items.length < 1 || items.length > 5) miss.push("List between 1 and 5 items.");
   items.forEach((it, i) => { const n = `Item ${i + 1}`;
     if (!it.name) miss.push(`${n}: food name.`);
-    if (!(it.quantity > 0) || !Number.isFinite(it.quantity) || it.quantity > 999) miss.push(`${n}: quantity must be between 0 and 999.`);
-    if (["each","bag","can","box","bottle","package"].includes(it.unit) && !Number.isInteger(it.quantity)) miss.push(`${n}: use a whole number for this unit.`);
-    if (!UNITS.includes(it.unit)) miss.push(`${n}: unit.`);
+    const qe = qtyError(it.rawQty, "quantity"); if (qe) miss.push(`${n}: ${qe}`);
     if (!["produce","shelf_stable"].includes(it.category)) miss.push(`${n}: category.`);
     if (it.category === "shelf_stable" && it.unopened !== true) miss.push(`${n}: packaged food must be marked unopened.`);
     if (!!it.printed_date !== !!it.date_type) miss.push(`${n}: printed date and date label must both be set or both left blank.`);
+    const pc = printedCheck(it.printed_date, it.date_type, now); pc.errors.forEach(x => miss.push(`${n}: ${x}`)); pc.warnings.forEach(x => warn.push(`${n}: ${x}`));
   });
-  const wf = form.wanted_food.value.trim(), wq = Number(form.wanted_quantity.value), wu = form.wanted_unit.value;
-  if (mode === "exchange") { if (!wf) miss.push("Food you want in return."); if (!(wq > 0)) miss.push("Positive quantity for the food you want."); if (!UNITS.includes(wu)) miss.push("Unit for the food you want."); }
+  items.forEach(it => delete it.rawQty);
+  const wf = form.wanted_food.value.trim(), wq = parseQty(form.wanted_quantity.value);
+  if (mode === "exchange") { if (!wf) miss.push("Food you want in return."); const qe = qtyError(form.wanted_quantity.value, "quantity for the food you want"); if (qe) miss.push(qe); }
   if (!ZONES.includes(form.location.value)) miss.push("Public pickup zone.");
   const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
-  if (!ps) miss.push("Exact pickup start."); if (!pe) miss.push("Exact pickup end."); if (!dl) miss.push("Exact available-until deadline.");
-  if (ps && pe && new Date(pe) <= new Date(ps)) miss.push("Pickup end must be after pickup start.");
-  if (pe && dl && new Date(pe) > new Date(dl)) miss.push("Pickup end must be on or before the deadline.");
-  if (pe && new Date(pe).getTime() <= now) miss.push("Pickup end must be in the future.");
-  if (dl && new Date(dl).getTime() <= now) miss.push("Deadline must be in the future.");
+  windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true}, now).forEach(x => miss.push(x));
   if (!TZ) miss.push("Time zone could not be detected.");
   const allergens = form.allergens.value.trim(); if (!allergens) miss.push('Allergens (write "Unknown" if unsure).');
   if (!form.fresh.checked) miss.push("Confirm food condition.");
   if (!form.storage_confirmed.checked) miss.push("Confirm storage and allergen disclosure.");
   if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo?.id) miss.push(photo ? "Upload the selected photo successfully." : "Photo of the actual food.");
-  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? wu : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, photo_id:photo?.id || null};
-  return {payload, key:JSON.stringify(payload), miss};
+  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? CANON_UNIT : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, photo_id:photo?.id || null};
+  return {payload, key:JSON.stringify(payload), miss, warn};
 }
 function approvalValid(d) { return !!(approval && sessionUser && approval.key === d.key && Date.now() < approval.exp && approval.photo_id === photo?.id); }
 function renderReview() {
-  const d = readDraft();
+  const d = readDraft(); applyPickupLimits(form);
   if (approval && Date.now() >= approval.exp) { approval = null; reviewState = {kind:"error", message:"Bob's approval expired. Check again before publishing."}; }
-  $("#listing-checklist").innerHTML = d.miss.length ? `<p class="muted">Missing or incorrect details (${d.miss.length}):</p><ul>${d.miss.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="ok">All required details are complete.</p>`;
+  $("#listing-checklist").innerHTML = (d.miss.length ? `<p class="muted">Missing or incorrect details (${d.miss.length}):</p><ul>${d.miss.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="ok">All required details are complete.</p>`) + (d.warn.length ? `<p class="muted">Heads up:</p><ul>${d.warn.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : "");
   const ok = approvalValid(d), st = $("#review-status");
   $("#review-button").disabled = !sessionUser || d.miss.length > 0 || reviewing || publishing;
   $("#review-button").textContent = reviewing ? "Bob is checking..." : ok ? "Check again with Bob" : "Check with Bob";
@@ -464,7 +469,7 @@ function editListing(l, over = {}) {
   const items = itemsOf(l).slice(0, 5); $("#listing-type").value = items.length > 1 ? "bundle" : "single";
   (items.length ? items : [{}]).forEach(itemRow);
   $("#listing-mode").value = over.mode || l.mode || "exchange"; setMode();
-  form.wanted_food.value = l.wanted_food || ""; form.wanted_quantity.value = l.wanted_quantity ?? ""; form.wanted_unit.value = UNITS.includes(l.wanted_unit) ? l.wanted_unit : "";
+  form.wanted_food.value = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; form.wanted_quantity.value = l.wanted_quantity ?? "";
   form.location.value = ZONES.includes(l.location) ? l.location : "";
   form.pickup_start.value = toLocalInput(l.pickup_start); form.pickup_end.value = toLocalInput(l.pickup_end); form.deadline.value = toLocalInput(l.deadline);
   form.allergens.value = l.allergens || "";
@@ -480,11 +485,12 @@ $("#cancel-edit").onclick = () => { resetEditor(true); notice.hidden = true; sho
 /* Standalone request */
 $("#request-form").addEventListener("submit", async e => {
   e.preventDefault(); if (!sessionUser) return openAuth(); const f = e.currentTarget, m = $("#request-notice");
-  const q = Number(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value);
-  if (!f.item.value.trim() || !(q > 0) || !f.unit.value.trim()) return setNotice(m, "Enter one food with a positive quantity and unit.");
+  const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value);
+  if (!f.item.value.trim()) return setNotice(m, "Enter the food you need.");
+  const qe = qtyError(f.quantity.value, "quantity"); if (qe) return setNotice(m, qe);
   if (!f.location.value || !ps || !pe || !dl) return setNotice(m, "Choose a zone, pickup window and needed-by time.");
-  if (new Date(pe) <= new Date(ps)) return setNotice(m, "Pickup end must be after the start.");
-  try { await post("/requests", {items:[f.item.value.trim()], quantity:q, unit:f.unit.value.trim(), location:f.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ}); setNotice(m, "Request posted.", true); f.reset(); refreshActivity(); }
+  const we = windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true, labels:{deadline:"Needed by"}}); if (we.length) return setNotice(m, we.join(" "));
+  try { await post("/requests", {items:[f.item.value.trim()], quantity:q, unit:CANON_UNIT, location:f.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ}); setNotice(m, "Request posted.", true); f.reset(); refreshActivity(); }
   catch (er) { setNotice(m, er.message); }
 });
 

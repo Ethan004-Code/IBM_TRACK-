@@ -15,9 +15,11 @@ export declare const GetListingsQueryParams: zod.ZodObject<{
     mine?: boolean | undefined;
 }>;
 export declare const GetListingsResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
-export declare const publishListingBodyOneItemDetailsItemQuantityExclusiveMin = 0;
-export declare const publishListingBodyOneItemDetailsItemQuantityMax = 999;
+export declare const publishListingBodyOneItemDetailsItemQuantityMax = 99;
+export declare const publishListingBodyOneItemDetailsItemUnitDefault = "each";
 export declare const publishListingBodyOneItemDetailsMax = 5;
+export declare const publishListingBodyOneWantedQuantityMax = 99;
+export declare const publishListingBodyOneWantedUnitDefault = "each";
 export declare const publishListingBodyOneAllergensMax = 200;
 export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
@@ -25,10 +27,10 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     item_details: zod.ZodArray<zod.ZodObject<{
         name: zod.ZodString;
         quantity: zod.ZodNumber;
-        unit: zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>;
+        unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
         category: zod.ZodEnum<["produce", "shelf_stable"]>;
         unopened: zod.ZodOptional<zod.ZodNullable<zod.ZodBoolean>>;
-        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodString>>;
+        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
         name: string;
@@ -36,20 +38,20 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }>, "many">;
     wanted_food: zod.ZodOptional<zod.ZodString>;
     wanted_quantity: zod.ZodOptional<zod.ZodNumber>;
-    wanted_unit: zod.ZodOptional<zod.ZodString>;
+    wanted_unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
     location: zod.ZodString;
     pickup_start: zod.ZodDate;
     pickup_end: zod.ZodDate;
@@ -68,9 +70,10 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
+    wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
     location: string;
     pickup_start: Date;
     pickup_end: Date;
@@ -82,17 +85,16 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     location: string;
@@ -106,7 +108,7 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
+    wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
 }>, zod.ZodObject<{
     approval_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
@@ -145,9 +147,11 @@ export declare const DeleteUnpostedListingPhotoResponse: zod.ZodRecord<zod.ZodSt
 /**
  * @summary Require complete fields and real Bob image approval; never publishes
  */
-export declare const reviewListingBodyItemDetailsItemQuantityExclusiveMin = 0;
-export declare const reviewListingBodyItemDetailsItemQuantityMax = 999;
+export declare const reviewListingBodyItemDetailsItemQuantityMax = 99;
+export declare const reviewListingBodyItemDetailsItemUnitDefault = "each";
 export declare const reviewListingBodyItemDetailsMax = 5;
+export declare const reviewListingBodyWantedQuantityMax = 99;
+export declare const reviewListingBodyWantedUnitDefault = "each";
 export declare const reviewListingBodyAllergensMax = 200;
 export declare const ReviewListingBody: zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
@@ -155,10 +159,10 @@ export declare const ReviewListingBody: zod.ZodObject<{
     item_details: zod.ZodArray<zod.ZodObject<{
         name: zod.ZodString;
         quantity: zod.ZodNumber;
-        unit: zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>;
+        unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
         category: zod.ZodEnum<["produce", "shelf_stable"]>;
         unopened: zod.ZodOptional<zod.ZodNullable<zod.ZodBoolean>>;
-        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodString>>;
+        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
         name: string;
@@ -166,20 +170,20 @@ export declare const ReviewListingBody: zod.ZodObject<{
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }>, "many">;
     wanted_food: zod.ZodOptional<zod.ZodString>;
     wanted_quantity: zod.ZodOptional<zod.ZodNumber>;
-    wanted_unit: zod.ZodOptional<zod.ZodString>;
+    wanted_unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
     location: zod.ZodString;
     pickup_start: zod.ZodDate;
     pickup_end: zod.ZodDate;
@@ -198,9 +202,10 @@ export declare const ReviewListingBody: zod.ZodObject<{
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
+    wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
     location: string;
     pickup_start: Date;
     pickup_end: Date;
@@ -212,17 +217,16 @@ export declare const ReviewListingBody: zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     location: string;
@@ -236,7 +240,7 @@ export declare const ReviewListingBody: zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
+    wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
 }>;
 export declare const ReviewListingResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const UpdateReviewedListingParams: zod.ZodObject<{
@@ -246,9 +250,11 @@ export declare const UpdateReviewedListingParams: zod.ZodObject<{
 }, {
     id: string;
 }>;
-export declare const updateReviewedListingBodyOneOneItemDetailsItemQuantityExclusiveMin = 0;
-export declare const updateReviewedListingBodyOneOneItemDetailsItemQuantityMax = 999;
+export declare const updateReviewedListingBodyOneOneItemDetailsItemQuantityMax = 99;
+export declare const updateReviewedListingBodyOneOneItemDetailsItemUnitDefault = "each";
 export declare const updateReviewedListingBodyOneOneItemDetailsMax = 5;
+export declare const updateReviewedListingBodyOneOneWantedQuantityMax = 99;
+export declare const updateReviewedListingBodyOneOneWantedUnitDefault = "each";
 export declare const updateReviewedListingBodyOneOneAllergensMax = 200;
 export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
@@ -256,10 +262,10 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     item_details: zod.ZodArray<zod.ZodObject<{
         name: zod.ZodString;
         quantity: zod.ZodNumber;
-        unit: zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>;
+        unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
         category: zod.ZodEnum<["produce", "shelf_stable"]>;
         unopened: zod.ZodOptional<zod.ZodNullable<zod.ZodBoolean>>;
-        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodString>>;
+        printed_date: zod.ZodOptional<zod.ZodNullable<zod.ZodDate>>;
         date_type: zod.ZodOptional<zod.ZodNullable<zod.ZodUnion<[zod.ZodLiteral<"best_by">, zod.ZodLiteral<"use_by">, zod.ZodLiteral<"sell_by">, zod.ZodLiteral<"expiration">, zod.ZodLiteral<null>]>>>;
     }, "strip", zod.ZodTypeAny, {
         name: string;
@@ -267,20 +273,20 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }, {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }>, "many">;
     wanted_food: zod.ZodOptional<zod.ZodString>;
     wanted_quantity: zod.ZodOptional<zod.ZodNumber>;
-    wanted_unit: zod.ZodOptional<zod.ZodString>;
+    wanted_unit: zod.ZodDefault<zod.ZodEnum<["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"]>>;
     location: zod.ZodString;
     pickup_start: zod.ZodDate;
     pickup_end: zod.ZodDate;
@@ -299,9 +305,10 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
         unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
+    wanted_unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
     location: string;
     pickup_start: Date;
     pickup_end: Date;
@@ -313,17 +320,16 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
     item_details: {
         name: string;
         quantity: number;
-        unit: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package";
         category: "produce" | "shelf_stable";
+        unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
         unopened?: boolean | null | undefined;
-        printed_date?: string | null | undefined;
+        printed_date?: Date | null | undefined;
         date_type?: "best_by" | "use_by" | "sell_by" | "expiration" | null | undefined;
     }[];
     location: string;
@@ -337,7 +343,7 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
-    wanted_unit?: string | undefined;
+    wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
 }>, zod.ZodObject<{
     approval_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {

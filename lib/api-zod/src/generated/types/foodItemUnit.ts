@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Count-only forms send each; other values remain for historical compatibility.
+ */
 export type FoodItemUnit = typeof FoodItemUnit[keyof typeof FoodItemUnit];
 
 

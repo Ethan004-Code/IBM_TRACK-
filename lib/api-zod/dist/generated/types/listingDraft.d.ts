@@ -8,6 +8,7 @@
 import type { FoodItem } from './foodItem';
 import type { ListingDraftListingType } from './listingDraftListingType';
 import type { ListingDraftMode } from './listingDraftMode';
+import type { ListingDraftWantedUnit } from './listingDraftWantedUnit';
 export interface ListingDraft {
     mode: ListingDraftMode;
     listing_type: ListingDraftListingType;
@@ -17,11 +18,18 @@ export interface ListingDraft {
        */
     item_details: FoodItem[];
     wanted_food?: string;
+    /**
+       * @minimum 1
+       * @maximum 99
+       */
     wanted_quantity?: number;
-    wanted_unit?: string;
+    wanted_unit?: ListingDraftWantedUnit;
     location: string;
+    /** Timezone required; now through one calendar year ahead, strictly before pickup_end. */
     pickup_start: Date;
+    /** After pickup_start, no later than deadline or one calendar year ahead. */
     pickup_end: Date;
+    /** Available until; no earlier than pickup_end and no later than one calendar year ahead. */
     deadline: Date;
     timezone: string;
     fresh: boolean;

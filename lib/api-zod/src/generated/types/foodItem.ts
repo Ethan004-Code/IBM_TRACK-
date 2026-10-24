@@ -12,16 +12,20 @@ import type { FoodItemUnit } from './foodItemUnit';
 export interface FoodItem {
   name: string;
   /**
-     * @maximum 999
-     * @exclusiveMinimum 0
+     * @minimum 1
+     * @maximum 99
      */
   quantity: number;
-  unit: FoodItemUnit;
+  /** Count-only forms send each; other values remain for historical compatibility. */
+  unit?: FoodItemUnit;
   category: FoodItemCategory;
   /** @nullable */
   unopened?: boolean | null;
-  /** @nullable */
-  printed_date?: string | null;
+  /**
+     * Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns.
+     * @nullable
+     */
+  printed_date?: Date | null;
   /** @nullable */
   date_type?: FoodItemDateType;
 }

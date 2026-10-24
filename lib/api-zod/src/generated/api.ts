@@ -18,11 +18,14 @@ export const GetListingsQueryParams = zod.object({
 export const GetListingsResponse = zod.record(zod.string(), zod.unknown())
 
 
-export const publishListingBodyOneItemDetailsItemQuantityExclusiveMin = 0;
-export const publishListingBodyOneItemDetailsItemQuantityMax = 999;
+export const publishListingBodyOneItemDetailsItemQuantityMax = 99;
 
+export const publishListingBodyOneItemDetailsItemUnitDefault = `each`;
 export const publishListingBodyOneItemDetailsMax = 5;
 
+export const publishListingBodyOneWantedQuantityMax = 99;
+
+export const publishListingBodyOneWantedUnitDefault = `each`;
 export const publishListingBodyOneAllergensMax = 200;
 
 
@@ -32,20 +35,20 @@ export const PublishListingBody = zod.object({
   "listing_type": zod.enum(['single', 'bundle']),
   "item_details": zod.array(zod.object({
   "name": zod.string(),
-  "quantity": zod.number().gt(publishListingBodyOneItemDetailsItemQuantityExclusiveMin).max(publishListingBodyOneItemDetailsItemQuantityMax),
-  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
+  "quantity": zod.number().int().min(1).max(publishListingBodyOneItemDetailsItemQuantityMax),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(publishListingBodyOneItemDetailsItemUnitDefault).describe('Count-only forms send each; other values remain for historical compatibility.'),
   "category": zod.enum(['produce', 'shelf_stable']),
   "unopened": zod.boolean().nullish(),
-  "printed_date": zod.string().nullish(),
+  "printed_date": zod.coerce.date().nullish().describe('Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns.'),
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(publishListingBodyOneItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().optional(),
-  "wanted_unit": zod.string().optional(),
+  "wanted_quantity": zod.number().int().min(1).max(publishListingBodyOneWantedQuantityMax).optional(),
+  "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(publishListingBodyOneWantedUnitDefault),
   "location": zod.string(),
-  "pickup_start": zod.coerce.date(),
-  "pickup_end": zod.coerce.date(),
-  "deadline": zod.coerce.date(),
+  "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
+  "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
+  "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),
   "timezone": zod.string(),
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
@@ -85,11 +88,14 @@ export const DeleteUnpostedListingPhotoResponse = zod.record(zod.string(), zod.u
 /**
  * @summary Require complete fields and real Bob image approval; never publishes
  */
-export const reviewListingBodyItemDetailsItemQuantityExclusiveMin = 0;
-export const reviewListingBodyItemDetailsItemQuantityMax = 999;
+export const reviewListingBodyItemDetailsItemQuantityMax = 99;
 
+export const reviewListingBodyItemDetailsItemUnitDefault = `each`;
 export const reviewListingBodyItemDetailsMax = 5;
 
+export const reviewListingBodyWantedQuantityMax = 99;
+
+export const reviewListingBodyWantedUnitDefault = `each`;
 export const reviewListingBodyAllergensMax = 200;
 
 
@@ -99,20 +105,20 @@ export const ReviewListingBody = zod.object({
   "listing_type": zod.enum(['single', 'bundle']),
   "item_details": zod.array(zod.object({
   "name": zod.string(),
-  "quantity": zod.number().gt(reviewListingBodyItemDetailsItemQuantityExclusiveMin).max(reviewListingBodyItemDetailsItemQuantityMax),
-  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
+  "quantity": zod.number().int().min(1).max(reviewListingBodyItemDetailsItemQuantityMax),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(reviewListingBodyItemDetailsItemUnitDefault).describe('Count-only forms send each; other values remain for historical compatibility.'),
   "category": zod.enum(['produce', 'shelf_stable']),
   "unopened": zod.boolean().nullish(),
-  "printed_date": zod.string().nullish(),
+  "printed_date": zod.coerce.date().nullish().describe('Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns.'),
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(reviewListingBodyItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().optional(),
-  "wanted_unit": zod.string().optional(),
+  "wanted_quantity": zod.number().int().min(1).max(reviewListingBodyWantedQuantityMax).optional(),
+  "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(reviewListingBodyWantedUnitDefault),
   "location": zod.string(),
-  "pickup_start": zod.coerce.date(),
-  "pickup_end": zod.coerce.date(),
-  "deadline": zod.coerce.date(),
+  "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
+  "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
+  "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),
   "timezone": zod.string(),
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
@@ -127,11 +133,14 @@ export const UpdateReviewedListingParams = zod.object({
   "id": zod.coerce.string().uuid()
 })
 
-export const updateReviewedListingBodyOneOneItemDetailsItemQuantityExclusiveMin = 0;
-export const updateReviewedListingBodyOneOneItemDetailsItemQuantityMax = 999;
+export const updateReviewedListingBodyOneOneItemDetailsItemQuantityMax = 99;
 
+export const updateReviewedListingBodyOneOneItemDetailsItemUnitDefault = `each`;
 export const updateReviewedListingBodyOneOneItemDetailsMax = 5;
 
+export const updateReviewedListingBodyOneOneWantedQuantityMax = 99;
+
+export const updateReviewedListingBodyOneOneWantedUnitDefault = `each`;
 export const updateReviewedListingBodyOneOneAllergensMax = 200;
 
 
@@ -141,20 +150,20 @@ export const UpdateReviewedListingBody = zod.union([zod.object({
   "listing_type": zod.enum(['single', 'bundle']),
   "item_details": zod.array(zod.object({
   "name": zod.string(),
-  "quantity": zod.number().gt(updateReviewedListingBodyOneOneItemDetailsItemQuantityExclusiveMin).max(updateReviewedListingBodyOneOneItemDetailsItemQuantityMax),
-  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']),
+  "quantity": zod.number().int().min(1).max(updateReviewedListingBodyOneOneItemDetailsItemQuantityMax),
+  "unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(updateReviewedListingBodyOneOneItemDetailsItemUnitDefault).describe('Count-only forms send each; other values remain for historical compatibility.'),
   "category": zod.enum(['produce', 'shelf_stable']),
   "unopened": zod.boolean().nullish(),
-  "printed_date": zod.string().nullish(),
+  "printed_date": zod.coerce.date().nullish().describe('Two calendar years ago through ten ahead in the listing timezone. Past use_by and expiration are rejected; past best_by warns.'),
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(updateReviewedListingBodyOneOneItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().optional(),
-  "wanted_unit": zod.string().optional(),
+  "wanted_quantity": zod.number().int().min(1).max(updateReviewedListingBodyOneOneWantedQuantityMax).optional(),
+  "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(updateReviewedListingBodyOneOneWantedUnitDefault),
   "location": zod.string(),
-  "pickup_start": zod.coerce.date(),
-  "pickup_end": zod.coerce.date(),
-  "deadline": zod.coerce.date(),
+  "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
+  "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
+  "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),
   "timezone": zod.string(),
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),

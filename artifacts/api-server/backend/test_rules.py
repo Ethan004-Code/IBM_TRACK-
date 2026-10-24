@@ -142,7 +142,7 @@ class RuleTests(unittest.TestCase):
 
     def test_giveaway_needs_no_reciprocal_food_but_both_confirmations(self):
         self.a["mode"] = "giveaway"
-        data = {k: self.b[k] for k in ("location", "pickup_start", "pickup_end")}
+        data = {k: self.a[k] for k in ("location", "pickup_start", "pickup_end")}
         self.invoke("request_giveaway", uid="b", listing_id="one", data=data)
         row = g.store["food_requests"][-1]
         with self.assertRaises(Forbidden):
