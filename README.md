@@ -1,4 +1,4 @@
-# EchoPantry Exchange
+# RePlate
 
 A community food sharing prototype for listing single items or bundles of up to five groceries as an exchange or giveaway, posting food requests, receiving match notifications, and confirming pickups. It does not handle payments or donate food automatically.
 
@@ -16,7 +16,7 @@ Flask serves both the frontend and API from the same origin. Open <http://127.0.
 
 ## MySQL setup
 
-Install and start MySQL, then create the EchoPantry database and tables:
+Install and start MySQL, then create the RePlate database and tables:
 
 ```bash
 mysql -u root -p < backend/mysql_schema.sql

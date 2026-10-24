@@ -156,7 +156,7 @@ def mysql_unavailable_message():
     if "access denied" in error:
         return "MySQL rejected the configured username or password. Set MYSQL_USER and MYSQL_PASSWORD in backend/.env, then restart Flask."
     if "unknown database" in error:
-        return "The EchoPantry database is missing. Run backend/mysql_schema.sql with a MySQL administrator account."
+        return "The RePlate database is missing. Run backend/mysql_schema.sql with a MySQL administrator account."
     if "can't connect" in error or "connection refused" in error or "timed out" in error:
         return "Cannot reach MySQL at the configured host and port. Check MYSQL_HOST and MYSQL_PORT and confirm the MySQL service is running."
     return "MySQL is not connected. Check the MYSQL_* settings in backend/.env and restart Flask."

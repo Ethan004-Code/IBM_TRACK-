@@ -1,4 +1,4 @@
-# EchoPantry verification
+# RePlate verification
 
 ## Required photo and Bob approval update
 

@@ -11,7 +11,7 @@ function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;",
 async function api(path, options = {}) {
   let res;
   try { res = await fetch(`${API}${path}`, {credentials:"include", headers:{"Content-Type":"application/json"}, ...options}); }
-  catch (er) { if (er?.name === "AbortError") { const e = Error("The request timed out."); e.timeout = true; throw e; } throw Error("Cannot reach the EchoPantry server. Check your connection and try again."); }
+  catch (er) { if (er?.name === "AbortError") { const e = Error("The request timed out."); e.timeout = true; throw e; } throw Error("Cannot reach the RePlate server. Check your connection and try again."); }
   let data = {}; try { data = await res.json(); } catch {}
   if (!res.ok) { const e = Error(data.error || `Request failed (${res.status}).`); e.status = res.status; e.data = data; throw e; }
   return data;
@@ -314,7 +314,7 @@ async function uploadSelectedPhoto() {
   const gen = ++uploadGen; photoBusy = true; ps.textContent = "Uploading photo... Your preview is not approval to publish."; renderPhoto(); invalidateApproval(true);
   const fd = new FormData(); fd.append("photo", file);
   try {
-    const res = await fetch(`${API}/listing-photos`, {method:"POST", credentials:"include", body:fd}).catch(() => { throw Error("Cannot reach the EchoPantry server."); });
+    const res = await fetch(`${API}/listing-photos`, {method:"POST", credentials:"include", body:fd}).catch(() => { throw Error("Cannot reach the RePlate server."); });
     let data = {}; try { data = await res.json(); } catch {}
     if (!res.ok) throw Error(data.error || `Upload failed (${res.status}).`);
     if (!data.photo_id || !data.preview_url) throw Error("The upload did not return a saved photo. Please retry.");
@@ -410,7 +410,7 @@ async function refreshNotifications() {
 }
 
 /* Auth */
-function setAuthMode(mode) { authMode = mode; const s = mode === "signup"; $("#auth-title").textContent = s ? "Join EchoPantry" : "Welcome back"; $("#auth-subtitle").textContent = s ? "Create an account to share and find food." : "Sign in to list food and manage your exchanges."; $("#display-name-field").hidden = !s; $("#auth-form [name=display_name]").required = s; $("#auth-form [name=password]").autocomplete = s ? "new-password" : "current-password"; $("#auth-submit").textContent = s ? "Create account" : "Sign in"; $("#login-tab").classList.toggle("selected", !s); $("#signup-tab").classList.toggle("selected", s); }
+function setAuthMode(mode) { authMode = mode; const s = mode === "signup"; $("#auth-title").textContent = s ? "Join RePlate" : "Welcome back"; $("#auth-subtitle").textContent = s ? "Create an account to share and find food." : "Sign in to list food and manage your exchanges."; $("#display-name-field").hidden = !s; $("#auth-form [name=display_name]").required = s; $("#auth-form [name=password]").autocomplete = s ? "new-password" : "current-password"; $("#auth-submit").textContent = s ? "Create account" : "Sign in"; $("#login-tab").classList.toggle("selected", !s); $("#signup-tab").classList.toggle("selected", s); }
 function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); if (editingId || (photo && !photo.guestDraft) || approval || reviewing) resetEditor(false); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
 function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; renderReview(); $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); }
 function openAuth(mode = "login") { setAuthMode(mode); $("#auth-notice").hidden = true; $("#auth-dialog").showModal(); }
@@ -419,7 +419,7 @@ $("#auth-form").addEventListener("submit", async e => {
   e.preventDefault(); const f = e.currentTarget, v = new FormData(f), s = authMode === "signup", m = $("#auth-notice"), b = $("#auth-submit"); m.hidden = true; b.disabled = true;
   try { const r = await post(`/auth/${s ? "signup" : "login"}`, s ? {display_name:v.get("display_name"), email:v.get("email"), password:v.get("password")} : {email:v.get("email"), password:v.get("password")});
     if (r.email_confirmation_required) return setNotice(m, "Check your email to confirm your account, then sign in.", true);
-    sessionUser = r.user; if (photo?.file) photo.guestDraft = false; $("#auth-dialog").close(); f.reset(); renderSession(); if (photo?.file) uploadSelectedPhoto(); await load(); showToast(s ? "Welcome to EchoPantry." : "You are signed in.");
+    sessionUser = r.user; if (photo?.file) photo.guestDraft = false; $("#auth-dialog").close(); f.reset(); renderSession(); if (photo?.file) uploadSelectedPhoto(); await load(); showToast(s ? "Welcome to RePlate." : "You are signed in.");
   } catch (er) { setNotice(m, er.message); } finally { b.disabled = false; }
 });
 $("#logout-button").onclick = async () => { resetEditor(true); try { await post("/auth/logout"); } catch {} sessionUser = null; renderSession(); await load(); showToast("Signed out."); };

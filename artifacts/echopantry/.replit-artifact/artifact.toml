@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "EchoPantry Exchange"
+title = "RePlate"
 description = "Community surplus food exchanges and giveaways, with reviewed Bob interpretation, safe matching, and confirmed impact."
 version = "1.0.0"
 id = "artifacts/echopantry"

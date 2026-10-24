@@ -1,4 +1,4 @@
-# EchoPantry Exchange
+# RePlate
 
 Community surplus-food exchange and giveaway website, corrected against the user's interview requirements in `docs/interview_me.md`.
 
