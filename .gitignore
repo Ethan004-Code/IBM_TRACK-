@@ -53,3 +53,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+__pycache__/
+*.py[cod]
+.pythonlibs/
+/generated-artifacts/

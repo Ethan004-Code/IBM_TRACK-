@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
-    "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
+    "dev": "python3 backend/app.py",
+    "build": "python3 -m compileall -q backend",
+    "start": "gunicorn --chdir backend --bind 0.0.0.0:$PORT --workers 2 --timeout 70 app:app",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "bobshell": "https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/bobshell-2.0.6.tgz",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",

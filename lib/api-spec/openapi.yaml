@@ -11,6 +11,147 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /health:
+    get:
+      operationId: getServiceStatus
+      responses:
+        "200":
+          description: Integration readiness without credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings:
+    get:
+      operationId: getListings
+      parameters:
+        - { in: query, name: mine, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Public eligible listings, or owner's listings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+    post:
+      operationId: publishListing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingInput" }
+      responses:
+        "201":
+          description: Listing and validated matches
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /interpret-listing:
+    post:
+      operationId: interpretListing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InterpretationInput" }
+      responses:
+        "200":
+          description: Editable draft, original text and ambiguities; never saves a listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings/{id}/matches:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getListingMatches
+      responses:
+        "200":
+          description: Server validated reciprocal, quantity-compatible matches with pickup overlap
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /listings/{id}/fallback-options:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getFallbackOptions
+      responses:
+        "200":
+          description: Matches, owner-approved giveaway choice and researched destinations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /offers:
+    get:
+      operationId: getOffers
+      responses:
+        "200":
+          description: Participant offers including fixed contents and pickup window
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+    post:
+      operationId: proposeOffer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OfferInput" }
+      responses:
+        "201":
+          description: Exact contents derived by the server, never from client quantities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /offers/{id}/respond:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: respondToOffer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecisionInput" }
+      responses:
+        "200":
+          description: Atomic acceptance or decline, conflict returns 409
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /offers/{id}/confirm-pickup:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: confirmPickup
+      responses:
+        "200":
+          description: One participant confirmation; completed only after both
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /outcomes:
+    post:
+      operationId: recordExternalOutcome
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OutcomeInput" }
+      responses:
+        "201":
+          description: Idempotent user-reported external outcome, not a recommendation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
+  /impact:
+    get:
+      operationId: getCommunityImpact
+      responses:
+        "200":
+          description: Confirmed handoffs and quantities grouped by food/unit; compost separate
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JsonResult" }
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +167,67 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    JsonResult:
+      type: object
+      additionalProperties: true
+    InterpretationInput:
+      type: object
+      required: [text, timezone]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 1200 }
+        timezone: { type: string }
+    FoodItem:
+      type: object
+      required: [name, quantity, unit, category]
+      properties:
+        name: { type: string }
+        quantity: { type: number, exclusiveMinimum: 0, maximum: 999 }
+        unit: { type: string, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
+        category: { type: string, enum: [produce, shelf_stable] }
+        unopened: { type: boolean }
+        printed_date: { type: [string, "null"] }
+        date_type: { type: [string, "null"], enum: [best_by, use_by, sell_by, expiration, null] }
+    ListingInput:
+      type: object
+      required: [mode, listing_type, item_details, location, pickup_start, pickup_end, deadline, fresh, storage_confirmed]
+      properties:
+        mode: { type: string, enum: [exchange, giveaway] }
+        listing_type: { type: string, enum: [single, bundle] }
+        item_details:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/FoodItem" }
+        wanted_food: { type: string }
+        wanted_quantity: { type: number }
+        wanted_unit: { type: string }
+        location: { type: string }
+        pickup_start: { type: string, format: date-time }
+        pickup_end: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        timezone: { type: string }
+        fresh: { type: boolean }
+        storage_confirmed: { type: boolean }
+        allergens: { type: string }
+    OfferInput:
+      type: object
+      required: [listing_id, match_id]
+      properties:
+        listing_id: { type: string }
+        match_id: { type: string }
+    DecisionInput:
+      type: object
+      required: [accept]
+      properties:
+        accept: { type: boolean }
+    OutcomeInput:
+      type: object
+      required: [listing_id, destination_id, action, confirmed]
+      properties:
+        listing_id: { type: string }
+        destination_id: { type: string }
+        action: { type: string, enum: [donation, compost] }
+        confirmed: { type: boolean }
     HealthStatus:
       type: object
       properties:

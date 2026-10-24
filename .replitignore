@@ -3,3 +3,6 @@
 
 # No need to store the pnpm store twice.
 .local
+__pycache__
+*.pyc
+generated-artifacts
