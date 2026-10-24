@@ -289,6 +289,24 @@ test("duplicate input/change events do not invalidate unchanged Bob approval", (
   assert.ok(app.S.reviewGen > gen);
 });
 
+test("pickup validation reconciles values displayed by native controls", () => {
+  const app = ui();
+  const start = new Date(Date.now() + 2 * 86400000);
+  start.setHours(10, 0, 0, 0);
+  const end = new Date(start); end.setHours(11);
+  const deadline = new Date(start); deadline.setHours(12);
+  const local = limits.toLocalInput;
+  app.nodes.set("#f-day", { value: local(start).slice(0, 10) });
+  app.nodes.set("#f-from", { value: local(start).slice(11) });
+  app.nodes.set("#f-until", { value: local(end).slice(11) });
+  app.nodes.set("#f-deadline", { value: local(deadline) });
+
+  const draft = app.readDraft();
+  assert.equal(draft.payload.pickup_start, start.toISOString());
+  assert.equal(draft.payload.pickup_end, end.toISOString());
+  assert.doesNotMatch(draft.miss.join(" "), /Set the pickup (start|end)/);
+});
+
 test("pickup fields are free text with exact note, placeholder, limit and counter", () => {
   const app = ui();
   const html = app.spotField("test-spot", "Library steps");
