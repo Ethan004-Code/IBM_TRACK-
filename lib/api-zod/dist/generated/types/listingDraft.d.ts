@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FoodItem } from './foodItem';
+import type { ListingDraftAllergenChoicesItem } from './listingDraftAllergenChoicesItem';
 import type { ListingDraftListingType } from './listingDraftListingType';
 import type { ListingDraftMode } from './listingDraftMode';
 import type { ListingDraftWantedUnit } from './listingDraftWantedUnit';
@@ -44,6 +45,13 @@ export interface ListingDraft {
        * @maxLength 200
        */
     allergens: string;
+    /**
+       * @minItems 1
+       * @maxItems 12
+       */
+    allergen_choices?: ListingDraftAllergenChoicesItem[];
+    /** @maxLength 50 */
+    allergen_other?: string;
     photo_id: string;
 }
 //# sourceMappingURL=listingDraft.d.ts.map

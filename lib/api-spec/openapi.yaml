@@ -356,6 +356,15 @@ components:
         fresh: { type: boolean }
         storage_confirmed: { type: boolean }
         allergens: { type: string, minLength: 1, maxLength: 200 }
+        allergen_choices:
+          type: array
+          minItems: 1
+          maxItems: 12
+          uniqueItems: true
+          items:
+            type: string
+            enum: [None, Unknown, Wheat/Gluten, Milk, Eggs, Peanuts, Tree nuts, Soy, Fish, Shellfish, Sesame, Other]
+        allergen_other: { type: string, maxLength: 50 }
         photo_id: { type: string, format: uuid }
     OfferInput:
       type: object

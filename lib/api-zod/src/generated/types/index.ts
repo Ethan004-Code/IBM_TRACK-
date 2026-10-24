@@ -19,6 +19,7 @@ export * from './interpretationInput';
 export * from './jsonResult';
 export * from './listingChange';
 export * from './listingDraft';
+export * from './listingDraftAllergenChoicesItem';
 export * from './listingDraftListingType';
 export * from './listingDraftMode';
 export * from './listingDraftWantedUnit';

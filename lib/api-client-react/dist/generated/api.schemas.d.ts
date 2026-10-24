@@ -82,6 +82,21 @@ export declare const ListingDraftWantedUnit: {
     readonly bottle: "bottle";
     readonly package: "package";
 };
+export type ListingDraftAllergenChoicesItem = typeof ListingDraftAllergenChoicesItem[keyof typeof ListingDraftAllergenChoicesItem];
+export declare const ListingDraftAllergenChoicesItem: {
+    readonly None: "None";
+    readonly Unknown: "Unknown";
+    readonly 'Wheat/Gluten': "Wheat/Gluten";
+    readonly Milk: "Milk";
+    readonly Eggs: "Eggs";
+    readonly Peanuts: "Peanuts";
+    readonly Tree_nuts: "Tree nuts";
+    readonly Soy: "Soy";
+    readonly Fish: "Fish";
+    readonly Shellfish: "Shellfish";
+    readonly Sesame: "Sesame";
+    readonly Other: "Other";
+};
 export interface ListingDraft {
     mode: ListingDraftMode;
     listing_type: ListingDraftListingType;
@@ -117,6 +132,13 @@ export interface ListingDraft {
        * @maxLength 200
        */
     allergens: string;
+    /**
+       * @minItems 1
+       * @maxItems 12
+       */
+    allergen_choices?: ListingDraftAllergenChoicesItem[];
+    /** @maxLength 50 */
+    allergen_other?: string;
     photo_id: string;
 }
 export type ListingInput = ListingDraft & {

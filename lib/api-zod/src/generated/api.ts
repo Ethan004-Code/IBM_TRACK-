@@ -30,6 +30,10 @@ export const publishListingBodyOneLocationMax = 100;
 
 export const publishListingBodyOneAllergensMax = 200;
 
+export const publishListingBodyOneAllergenChoicesMax = 12;
+
+export const publishListingBodyOneAllergenOtherMax = 50;
+
 
 
 export const PublishListingBody = zod.object({
@@ -55,6 +59,8 @@ export const PublishListingBody = zod.object({
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
   "allergens": zod.string().min(1).max(publishListingBodyOneAllergensMax),
+  "allergen_choices": zod.array(zod.enum(['None', 'Unknown', 'Wheat/Gluten', 'Milk', 'Eggs', 'Peanuts', 'Tree nuts', 'Soy', 'Fish', 'Shellfish', 'Sesame', 'Other'])).min(1).max(publishListingBodyOneAllergenChoicesMax).optional(),
+  "allergen_other": zod.string().max(publishListingBodyOneAllergenOtherMax).optional(),
   "photo_id": zod.string().uuid()
 }).and(zod.object({
   "approval_id": zod.string().uuid()
@@ -102,6 +108,10 @@ export const reviewListingBodyLocationMax = 100;
 
 export const reviewListingBodyAllergensMax = 200;
 
+export const reviewListingBodyAllergenChoicesMax = 12;
+
+export const reviewListingBodyAllergenOtherMax = 50;
+
 
 
 export const ReviewListingBody = zod.object({
@@ -127,6 +137,8 @@ export const ReviewListingBody = zod.object({
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
   "allergens": zod.string().min(1).max(reviewListingBodyAllergensMax),
+  "allergen_choices": zod.array(zod.enum(['None', 'Unknown', 'Wheat/Gluten', 'Milk', 'Eggs', 'Peanuts', 'Tree nuts', 'Soy', 'Fish', 'Shellfish', 'Sesame', 'Other'])).min(1).max(reviewListingBodyAllergenChoicesMax).optional(),
+  "allergen_other": zod.string().max(reviewListingBodyAllergenOtherMax).optional(),
   "photo_id": zod.string().uuid()
 })
 
@@ -148,6 +160,10 @@ export const updateReviewedListingBodyOneOneWantedUnitDefault = `each`;
 export const updateReviewedListingBodyOneOneLocationMax = 100;
 
 export const updateReviewedListingBodyOneOneAllergensMax = 200;
+
+export const updateReviewedListingBodyOneOneAllergenChoicesMax = 12;
+
+export const updateReviewedListingBodyOneOneAllergenOtherMax = 50;
 
 
 
@@ -174,6 +190,8 @@ export const UpdateReviewedListingBody = zod.union([zod.object({
   "fresh": zod.boolean(),
   "storage_confirmed": zod.boolean(),
   "allergens": zod.string().min(1).max(updateReviewedListingBodyOneOneAllergensMax),
+  "allergen_choices": zod.array(zod.enum(['None', 'Unknown', 'Wheat/Gluten', 'Milk', 'Eggs', 'Peanuts', 'Tree nuts', 'Soy', 'Fish', 'Shellfish', 'Sesame', 'Other'])).min(1).max(updateReviewedListingBodyOneOneAllergenChoicesMax).optional(),
+  "allergen_other": zod.string().max(updateReviewedListingBodyOneOneAllergenOtherMax).optional(),
   "photo_id": zod.string().uuid()
 }).and(zod.object({
   "approval_id": zod.string().uuid()

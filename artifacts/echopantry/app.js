@@ -1,6 +1,8 @@
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, toLocalInput as localStr, SPOT_MAX, SPOT_PLACEHOLDER, SPOT_NOTE, spotError } from "./limits.js";
+import { parseAllergens, allergenValue, toggleAllergen, allergenError, allergenPayload, allergenMarkup } from "./allergens.js";
+import "./allergens.css";
 
 const API = "/api";
 const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
@@ -317,6 +319,19 @@ $("#giveaway-form").addEventListener("submit", async e => {
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
 
 /* Listing form */
+function renderAllergenChips() {
+  $("#allergen-chips").innerHTML = allergenMarkup(form.allergens.value, esc, "data-allergen-other", "legacy-allergen");
+}
+renderAllergenChips();
+$("#allergen-chips").addEventListener("click", e => {
+  const chip = e.target.closest('[data-action="allergen-toggle"]'); if (!chip) return;
+  form.allergens.value = toggleAllergen(form.allergens.value, chip.dataset.value);
+  renderAllergenChips(); onFormChanged();
+});
+$("#allergen-chips").addEventListener("input", e => {
+  if (!e.target.matches("[data-allergen-other]")) return;
+  form.allergens.value = allergenValue(parseAllergens(form.allergens.value).selected, e.target.value);
+});
 function itemRow(i = {}) {
   const n = $("#item-rows").children.length + 1, row = document.createElement("fieldset"); row.className = "item-row";
   row.innerHTML = `<legend>Item ${n}</legend><button type="button" class="mini-btn danger remove-item">Remove</button><div class="form-row"><label class="wide">Food name<input data-f="name" required placeholder="${ITEM_PLACEHOLDER}" value="${esc(foldName(i.name ?? "", i.unit, i.quantity))}"></label><label>Quantity<input data-f="quantity" ${QTY_ATTRS} required value="${esc(i.quantity ?? "")}"></label></div><div class="form-row"><label>Category<select data-f="category" required><option value="">Choose</option><option value="produce">Whole produce</option><option value="shelf_stable">Unopened shelf-stable</option></select></label><label>Unopened?<select data-f="unopened"><option value="">Not applicable</option><option value="true">Yes, unopened</option><option value="false">No</option></select></label></div><div class="form-row"><label>Printed date <span class="optional">(optional)</span><input data-f="printed_date" type="date" min="${printedLimits().min}" max="${printedLimits().max}" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(i.printed_date || "") ? i.printed_date : "")}"></label><label>Date label<select data-f="date_type"><option value="">None</option><option value="best_by">Best by</option><option value="use_by">Use by</option><option value="sell_by">Sell by</option><option value="expiration">Expiration</option></select></label></div>`;
@@ -330,7 +345,7 @@ function setMode() { const g = $("#listing-mode").value === "giveaway"; document
 $("#listing-mode").onchange = setMode;
 $("#listing-type").onchange = () => { if ($("#listing-type").value === "single") [...$("#item-rows").children].slice(1).forEach(r => r.remove()); renumber(); onFormChanged(); };
 $("#add-item").onclick = () => { if ($("#item-rows").children.length < 5) { itemRow(); onFormChanged(); } };
-function resetListingForm() { form.reset(); $("#item-rows").innerHTML = ""; itemRow(); setMode(); renumber(); }
+function resetListingForm() { form.reset(); form.allergens.value = ""; renderAllergenChips(); $("#item-rows").innerHTML = ""; itemRow(); setMode(); renumber(); }
 
 $("#interpret-button").onclick = async () => {
   const text = $("#interpret-text").value.trim(), st = $("#interpret-notice"), btn = $("#interpret-button");
@@ -341,6 +356,9 @@ $("#interpret-button").onclick = async () => {
     ["pickup_start","pickup_end","deadline"].forEach(k => form[k].value = ""); form.fresh.checked = false; form.storage_confirmed.checked = false;
     const items = (draft.item_details || []).slice(0, 5); $("#item-rows").innerHTML = "";
     $("#listing-type").value = items.length > 1 ? "bundle" : "single"; (items.length ? items : [{}]).forEach(itemRow);
+    if (items.length && items.every(i => i.category === "produce")) {
+      form.allergens.value = "None"; renderAllergenChips();
+    }
     form.location.value = draft.location || ""; updateSpotCounters();
     const notes = [...(draft.ambiguities || [])];
     if (draft.location) notes.push(`Check pickup spot "${draft.location}". ${SPOT_NOTE}`);
@@ -387,11 +405,12 @@ function readDraft() {
   const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
   windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true}, now).forEach(x => miss.push(x));
   if (!TZ) miss.push("Time zone could not be detected.");
-  const allergens = form.allergens.value.trim(); if (!allergens) miss.push('Allergens (write "Unknown" if unsure).');
+  const allergens = form.allergens.value.trim(), allergenMessage = allergenError(form.allergens.value);
+  if (allergenMessage) miss.push(allergenMessage);
   if (!form.fresh.checked) miss.push("Confirm food condition.");
   if (!form.storage_confirmed.checked) miss.push("Confirm storage and allergen disclosure.");
   if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo?.id) miss.push(photo ? "Upload the selected photo successfully." : "Photo of the actual food.");
-  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? CANON_UNIT : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, photo_id:photo?.id || null};
+  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? CANON_UNIT : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, ...allergenPayload(form.allergens.value), photo_id:photo?.id || null};
   return {payload, key:JSON.stringify(payload), miss, warn};
 }
 function approvalValid(d) { return !!(approval && sessionUser && approval.key === d.key && Date.now() < approval.exp && approval.photo_id === photo?.id); }
@@ -418,7 +437,13 @@ function invalidateApproval(changed) {
 }
 function onFormChanged() { invalidateApproval(true); }
 form.addEventListener("input", e => { if (e.target.id !== "interpret-text" && e.target.id !== "photo-input") onFormChanged(); });
-form.addEventListener("change", e => { if (e.target.id !== "interpret-text" && e.target.id !== "photo-input") onFormChanged(); });
+form.addEventListener("change", e => {
+  if (e.target.matches('[data-f="category"]') && e.target.value === "produce" &&
+      [...form.querySelectorAll('[data-f="category"]')].every(input => input.value === "produce")) {
+    form.allergens.value = "None"; renderAllergenChips();
+  }
+  if (e.target.id !== "interpret-text" && e.target.id !== "photo-input") onFormChanged();
+});
 setInterval(() => { if (approval || reviewing) renderReview(); }, 1000);
 setInterval(() => { if (approval && Date.now() >= approval.exp) renderReview(); }, 1000);
 
@@ -516,7 +541,7 @@ function editListing(l, over = {}) {
   form.wanted_food.value = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; form.wanted_quantity.value = l.wanted_quantity ?? "";
   form.location.value = l.location || ""; updateSpotCounters();
   form.pickup_start.value = toLocalInput(l.pickup_start); form.pickup_end.value = toLocalInput(l.pickup_end); form.deadline.value = toLocalInput(l.deadline);
-  form.allergens.value = l.allergens || "";
+  form.allergens.value = l.allergens || ""; renderAllergenChips();
   photo = l.photo_id ? {id:l.photo_id, owned:false} : null; photoBusy = false; editingId = l.id;
   $("#photo-status").textContent = photo ? "Using the saved photo. Replace it if the food has changed." : "This listing has no photo yet. Add one to publish.";
   $("#listing-form-title").textContent = "Edit listing"; $("#cancel-edit").hidden = false;

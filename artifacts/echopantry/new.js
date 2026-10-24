@@ -2,6 +2,8 @@
    Uses the same Flask API, fields and rules as app.js. Only the screens are new. */
 import { createDonationMap } from "./new-donation-map.js";
 import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, SPOT_MAX, SPOT_PLACEHOLDER, SPOT_NOTE, spotError } from "./limits.js";
+import { parseAllergens, allergenValue, toggleAllergen, allergenError, allergenPayload, allergenMarkup } from "./allergens.js";
+import "./allergens.css";
 const API = "/api";
 const DATE_TYPES = { best_by: "Best by", use_by: "Use by", sell_by: "Sell by", expiration: "Expiration" };
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -286,8 +288,8 @@ function viewReview() {
     </div>
     <p class="foot">Meet at a public spot. Never share your home address. Pickup must be within the next year, and "Available until" can't be earlier than your pickup end.</p>
     <p class="section-label">Allergens</p>
-    <div class="group"><div class="row"><label for="f-allergens">Contains</label><input id="f-allergens" data-bind="draft.allergens" value="${esc(d.allergens)}" placeholder="Wheat, None, or Unknown"></div></div>
-    <p class="foot">Required. Write "Unknown" if you're not sure. It's shown to whoever picks up.</p>
+    <div class="group">${allergenMarkup(d.allergens, esc, 'data-bind="draft.allergen_other"', "f-allergen")}</div>
+    <p class="foot">Choose "Unknown" if you're not sure. Your selection is shown to whoever picks up.</p>
     <label class="check" for="f-fresh"><input id="f-fresh" type="checkbox" data-bind="draft.fresh"${d.fresh ? " checked" : ""}>These are whole produce in good condition or unopened shelf-stable food.</label>
     <label class="check" for="f-storage"><input id="f-storage" type="checkbox" data-bind="draft.storage_confirmed"${d.storage_confirmed ? " checked" : ""}>I stored them properly and listed known allergens above.</label>
     <div class="review-panel" id="review-panel"></div>
@@ -321,11 +323,12 @@ function readDraft() {
   const ps = d.day && d.from ? toUtcIso(`${d.day}T${d.from}`) : null, pe = d.day && d.until ? toUtcIso(`${d.day}T${d.until}`) : null, dl = toUtcIso(d.deadline);
   if (!d.day) { miss.push("Pick a pickup day."); if (!dl) miss.push('Set "Available until".'); }
   else windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true }, now).forEach(e => miss.push(e));
-  const allergens = String(d.allergens).trim(); if (!allergens) miss.push('List allergens, or write "Unknown".');
+  const allergens = String(d.allergens).trim(), allergenMessage = allergenError(d.allergens);
+  if (allergenMessage) miss.push(allergenMessage);
   if (!d.fresh) miss.push("Confirm the food's condition.");
   if (!d.storage_confirmed) miss.push("Confirm storage and allergens.");
   if (S.photoBusy) miss.push("Wait for the photo to finish uploading."); else if (!S.photo?.id) miss.push(S.photo ? "Upload your photo (tap Retry)." : "Add a photo of the actual food.");
-  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: mode === "exchange" ? wq : null, wanted_unit: mode === "exchange" ? CANON_UNIT : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, photo_id: S.photo?.id || null };
+  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: mode === "exchange" ? wq : null, wanted_unit: mode === "exchange" ? CANON_UNIT : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, ...allergenPayload(d.allergens), photo_id: S.photo?.id || null };
   return { payload, key: JSON.stringify(payload), miss, warn };
 }
 function approvalValid(d) { return !!(S.approval && S.user && S.approval.key === d.key && Date.now() < S.approval.exp && S.approval.photo_id === S.photo?.id); }
@@ -375,6 +378,7 @@ async function doInterpret() {
     const d = emptyDraft();
     const items = (draft.item_details || []).slice(0, MAX_ITEMS);
     d.items = items.length ? items.map(fromApiItem) : [emptyItem()];
+    if (d.items.every(it => it.condition === "produce")) d.allergens = "None";
     d.location = draft.location || "";
     const notes = [...(draft.ambiguities || [])];
     if (draft.location) notes.push(`Check the pickup spot "${draft.location}". Use a public place, not your home address.`);
@@ -928,6 +932,10 @@ const actions = {
   "set-hours": el => { S.filter.hours = Number(el.dataset.value) || 0; closeSheet(); render(); },
   "open-listing": el => openListing(el.dataset.id),
   "ask-giveaway": el => { const l = findListing(el.dataset.id); requireAuth(() => openSheet("Ask for this giveaway", giveawayBody(l), listingTitle(l))); },
+  "allergen-toggle": el => {
+    S.draft.allergens = toggleAllergen(S.draft.allergens, el.dataset.value);
+    S.publishError = ""; invalidateApproval(true); render();
+  },
   "offer-swap": el => requireAuth(() => {
     const mine = S.myListings.filter(x => x.status === "open" && x.mode === "exchange");
     if (mine.length) { toast("Swaps come from your own listing. Checking your matches…"); openFallback(mine[0].id); return; }
@@ -1007,6 +1015,11 @@ function onBind(e) {
   const val = el.type === "checkbox" ? el.checked : el.value;
   const keys = path.split("."); let o = S; keys.slice(0, -1).forEach(k => { o = o[k]; }); o[keys.at(-1)] = val;
   if (!path.startsWith("draft.")) return;
+  if (path === "draft.allergen_other") {
+    S.draft.allergens = allergenValue(parseAllergens(S.draft.allergens).selected, val);
+  }
+  if (/^draft\.items\.\d+\.condition$/.test(path) && val === "produce" &&
+      S.draft.items.every(it => it.condition === "produce")) S.draft.allergens = "None";
   // An explicit Clear is a user choice too; do not auto-fill it again.
   if (path === "draft.deadline") S.dtTouched = true;
   if (path === "draft.day") {

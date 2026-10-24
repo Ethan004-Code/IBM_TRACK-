@@ -102,6 +102,24 @@ export const ListingDraftWantedUnit = {
   package: 'package',
 } as const;
 
+export type ListingDraftAllergenChoicesItem = typeof ListingDraftAllergenChoicesItem[keyof typeof ListingDraftAllergenChoicesItem];
+
+
+export const ListingDraftAllergenChoicesItem = {
+  None: 'None',
+  Unknown: 'Unknown',
+  'Wheat/Gluten': 'Wheat/Gluten',
+  Milk: 'Milk',
+  Eggs: 'Eggs',
+  Peanuts: 'Peanuts',
+  Tree_nuts: 'Tree nuts',
+  Soy: 'Soy',
+  Fish: 'Fish',
+  Shellfish: 'Shellfish',
+  Sesame: 'Sesame',
+  Other: 'Other',
+} as const;
+
 export interface ListingDraft {
   mode: ListingDraftMode;
   listing_type: ListingDraftListingType;
@@ -137,6 +155,13 @@ export interface ListingDraft {
      * @maxLength 200
      */
   allergens: string;
+  /**
+     * @minItems 1
+     * @maxItems 12
+     */
+  allergen_choices?: ListingDraftAllergenChoicesItem[];
+  /** @maxLength 50 */
+  allergen_other?: string;
   photo_id: string;
 }
 

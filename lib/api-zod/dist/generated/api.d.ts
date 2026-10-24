@@ -22,6 +22,8 @@ export declare const publishListingBodyOneWantedQuantityMax = 99;
 export declare const publishListingBodyOneWantedUnitDefault = "each";
 export declare const publishListingBodyOneLocationMax = 100;
 export declare const publishListingBodyOneAllergensMax = 200;
+export declare const publishListingBodyOneAllergenChoicesMax = 12;
+export declare const publishListingBodyOneAllergenOtherMax = 50;
 export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
     listing_type: zod.ZodEnum<["single", "bundle"]>;
@@ -61,6 +63,8 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     fresh: zod.ZodBoolean;
     storage_confirmed: zod.ZodBoolean;
     allergens: zod.ZodString;
+    allergen_choices: zod.ZodOptional<zod.ZodArray<zod.ZodEnum<["None", "Unknown", "Wheat/Gluten", "Milk", "Eggs", "Peanuts", "Tree nuts", "Soy", "Fish", "Shellfish", "Sesame", "Other"]>, "many">>;
+    allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
     mode: "exchange" | "giveaway";
@@ -86,6 +90,8 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
@@ -110,6 +116,8 @@ export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
     wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }>, zod.ZodObject<{
     approval_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
@@ -155,6 +163,8 @@ export declare const reviewListingBodyWantedQuantityMax = 99;
 export declare const reviewListingBodyWantedUnitDefault = "each";
 export declare const reviewListingBodyLocationMax = 100;
 export declare const reviewListingBodyAllergensMax = 200;
+export declare const reviewListingBodyAllergenChoicesMax = 12;
+export declare const reviewListingBodyAllergenOtherMax = 50;
 export declare const ReviewListingBody: zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
     listing_type: zod.ZodEnum<["single", "bundle"]>;
@@ -194,6 +204,8 @@ export declare const ReviewListingBody: zod.ZodObject<{
     fresh: zod.ZodBoolean;
     storage_confirmed: zod.ZodBoolean;
     allergens: zod.ZodString;
+    allergen_choices: zod.ZodOptional<zod.ZodArray<zod.ZodEnum<["None", "Unknown", "Wheat/Gluten", "Milk", "Eggs", "Peanuts", "Tree nuts", "Soy", "Fish", "Shellfish", "Sesame", "Other"]>, "many">>;
+    allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
     mode: "exchange" | "giveaway";
@@ -219,6 +231,8 @@ export declare const ReviewListingBody: zod.ZodObject<{
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
@@ -243,6 +257,8 @@ export declare const ReviewListingBody: zod.ZodObject<{
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
     wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }>;
 export declare const ReviewListingResponse: zod.ZodRecord<zod.ZodString, zod.ZodUnknown>;
 export declare const UpdateReviewedListingParams: zod.ZodObject<{
@@ -259,6 +275,8 @@ export declare const updateReviewedListingBodyOneOneWantedQuantityMax = 99;
 export declare const updateReviewedListingBodyOneOneWantedUnitDefault = "each";
 export declare const updateReviewedListingBodyOneOneLocationMax = 100;
 export declare const updateReviewedListingBodyOneOneAllergensMax = 200;
+export declare const updateReviewedListingBodyOneOneAllergenChoicesMax = 12;
+export declare const updateReviewedListingBodyOneOneAllergenOtherMax = 50;
 export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
     listing_type: zod.ZodEnum<["single", "bundle"]>;
@@ -298,6 +316,8 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     fresh: zod.ZodBoolean;
     storage_confirmed: zod.ZodBoolean;
     allergens: zod.ZodString;
+    allergen_choices: zod.ZodOptional<zod.ZodArray<zod.ZodEnum<["None", "Unknown", "Wheat/Gluten", "Milk", "Eggs", "Peanuts", "Tree nuts", "Soy", "Fish", "Shellfish", "Sesame", "Other"]>, "many">>;
+    allergen_other: zod.ZodOptional<zod.ZodString>;
     photo_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {
     mode: "exchange" | "giveaway";
@@ -323,6 +343,8 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     photo_id: string;
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }, {
     mode: "exchange" | "giveaway";
     listing_type: "single" | "bundle";
@@ -347,6 +369,8 @@ export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersectio
     wanted_food?: string | undefined;
     wanted_quantity?: number | undefined;
     wanted_unit?: "each" | "g" | "kg" | "oz" | "lb" | "bag" | "can" | "box" | "bottle" | "package" | undefined;
+    allergen_choices?: ("None" | "Unknown" | "Wheat/Gluten" | "Milk" | "Eggs" | "Peanuts" | "Tree nuts" | "Soy" | "Fish" | "Shellfish" | "Sesame" | "Other")[] | undefined;
+    allergen_other?: string | undefined;
 }>, zod.ZodObject<{
     approval_id: zod.ZodString;
 }, "strip", zod.ZodTypeAny, {

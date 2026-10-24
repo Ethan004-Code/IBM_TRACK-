@@ -15,6 +15,26 @@ from photos import identifier, owned_photo
 
 POLICY = "listing-photo-v1"
 REVIEW_TABLE = "listing_approvals"
+ALLERGENS = ("None", "Unknown", "Wheat/Gluten", "Milk", "Eggs", "Peanuts", "Tree nuts",
+             "Soy", "Fish", "Shellfish", "Sesame", "Other")
+
+
+def allergen_declaration(data):
+    if "allergen_choices" not in data:
+        return data.get("allergens")  # Existing free-text declarations stay compatible.
+    choices, other = data["allergen_choices"], data.get("allergen_other", "")
+    if (not isinstance(choices, list) or not choices
+            or any(not isinstance(v, str) or v not in ALLERGENS for v in choices)
+            or len(set(choices)) != len(choices)
+            or (("None" in choices or "Unknown" in choices) and len(choices) != 1)):
+        raise BadRequest("Select at least one allergen. None and Unknown cannot be combined with other choices.")
+    if not isinstance(other, str) or len(other) > 50:
+        raise BadRequest("Other allergen must be 50 characters or fewer.")
+    if "Other" in choices and not other.strip():
+        raise BadRequest("Describe the other allergen.")
+    if "Other" not in choices and other:
+        raise BadRequest("Select Other before adding an allergen description.")
+    return ", ".join(f"Other: {other.strip()}" if v == "Other" else v for v in ALLERGENS if v in choices)
 
 
 def validated_fields(data):
@@ -49,7 +69,7 @@ def validated_fields(data):
         wanted_unit = data.get("wanted_unit") or "each"
         if wanted_unit not in UNITS:
             raise BadRequest("Choose the wanted food unit.")
-    allergens = data.get("allergens")
+    allergens = allergen_declaration(data)
     if not isinstance(allergens, str) or not 1 <= len(allergens.strip()) <= 200:
         raise BadRequest("Declare allergens, or explicitly enter Unknown.")
     return dict(mode=mode, listing_type=size, item_details=items,

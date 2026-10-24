@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import * as limits from "./limits.js";
+import * as allergens from "./allergens.js";
 
 function ui(fetchImpl = async () => { throw Error("Unexpected network request"); }) {
   const nodes = new Map();
@@ -18,7 +19,7 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
     addEventListener() {},
   };
   const context = vm.createContext({
-    ...limits, document, fetch: fetchImpl, Date, Intl, URL,
+    ...limits, ...allergens, document, fetch: fetchImpl, Date, Intl, URL,
     createDonationMap() {}, setInterval() {}, setTimeout() {},
   });
   const source = fs.readFileSync(new URL("./new.js", import.meta.url), "utf8")
@@ -26,7 +27,7 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
   vm.runInContext(source + `
     globalThis.ui = { S, viewImpact, refreshImpact, conditionOptions,
       viewCompose, viewReview, onBind, readDraft, signedOut,
-      spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard };
+      spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard, actions };
   `, context);
   return { ...context.ui, nodes };
 }
@@ -88,6 +89,40 @@ test("Share explains Bob and never offers Opened package", () => {
   assert.ok(app.viewCompose().includes(message));
   assert.ok(app.viewReview().includes(message));
   assert.doesNotMatch(app.conditionOptions(""), /Opened package|value="opened"/);
+});
+
+test("allergen chips require a choice and keep old free-text declarations untouched", () => {
+  const app = ui();
+  assert.match(app.readDraft().miss.join(" "), /Select at least one allergen chip/);
+  assert.doesNotMatch(app.viewReview(), /id="f-allergens"/);
+  for (const label of allergens.ALLERGENS) assert.ok(app.viewReview().includes(`data-value="${label}"`));
+  app.S.draft.allergens = "Old label: possible traces of lupin";
+  assert.match(app.viewReview(), /Old label: possible traces of lupin/);
+  assert.equal(app.readDraft().payload.allergens, "Old label: possible traces of lupin");
+  assert.equal(app.readDraft().payload.allergen_choices, undefined);
+  assert.match(app.readDraft().miss.join(" "), /Select at least one allergen chip/);
+});
+
+test("whole produce defaults to None only on condition changes; user may override", () => {
+  const app = ui();
+  const change = (path, value) => app.onBind({type: "change",
+    target: {type: "text", value, dataset: {bind: path}}});
+  change("draft.items.0.condition", "produce");
+  assert.equal(app.S.draft.allergens, "None");
+  app.actions["allergen-toggle"]({dataset: {value: "Milk"}});
+  app.actions["allergen-toggle"]({dataset: {value: "Eggs"}});
+  assert.equal(app.S.draft.allergens, "Milk, Eggs");
+  change("draft.items.0.name", "apples");
+  assert.equal(app.S.draft.allergens, "Milk, Eggs");
+  app.actions["allergen-toggle"]({dataset: {value: "Unknown"}});
+  assert.equal(app.S.draft.allergens, "Unknown");
+  app.actions["allergen-toggle"]({dataset: {value: "Other"}});
+  change("draft.allergen_other", "Mustard, lupin");
+  assert.equal(app.S.draft.allergens, "Other: Mustard, lupin");
+  assert.match(app.viewReview(), /maxlength="50"/);
+  change("draft.allergen_other", "");
+  assert.match(app.readDraft().miss.join(" "), /Describe the other allergen/);
+  assert.equal(app.S.approval, null);
 });
 
 test("change-only Clear updates state and does not refill the cleared deadline", () => {
