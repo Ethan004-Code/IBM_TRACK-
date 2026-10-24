@@ -1,0 +1,13 @@
+{
+  "name": "echopantry-donation-fallback-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-only OpenStreetMap and openrouteservice preview for RePlate donation fallback.",
+  "scripts": {
+    "preview": "python3 preview_server.py",
+    "check": "node --check prototype.js && python3 -m unittest -v test_preview_server.py"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  }
+}

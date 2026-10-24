@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7ef">
+  <title>RePlate · Live donation fallback prototype</title>
+  <meta name="description" content="A local-only preview of verified food donation options with OpenStreetMap and live drive times.">
+  <link rel="stylesheet" href="./node_modules/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="./prototype.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="prototype-banner" role="status">
+    <strong>Isolated prototype</strong>
+    <span>No account, listing, or search data is saved.</span>
+  </div>
+
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="RePlate home">
+      <span class="brand-mark" aria-hidden="true">R</span>
+      <span>Re<strong>Plate</strong></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a class="active" href="#main">Discover</a>
+      <a href="#fallback-panel">Next steps</a>
+      <a href="#">My impact</a>
+    </nav>
+    <div class="profile"><span class="avatar" aria-hidden="true">K</span><span>Karina</span></div>
+  </header>
+
+  <main class="page" id="main">
+    <section class="page-head" aria-labelledby="page-title">
+      <span class="eyebrow">Your listing</span>
+      <h1 id="page-title">Let’s keep looking.</h1>
+      <p>No compatible exchange is available yet. Your listing remains active until Friday.</p>
+    </section>
+
+    <article class="sample-card">
+      <div class="sample-card-main">
+        <div class="sample-art" aria-hidden="true">🍚 🥫</div>
+        <div>
+          <h2>Rice &amp; canned beans</h2>
+          <p>Unopened · unexpired · available until Friday, 5 PM</p>
+          <div class="chips"><span>2 lb rice</span><span>3 canned beans</span><span>No glass</span></div>
+        </div>
+        <button class="button secondary" id="retry-match" type="button">Search again</button>
+      </div>
+      <div class="status-line"><span class="pulse" aria-hidden="true"></span><span id="match-status">We’ll keep checking for exchanges and giveaways near your pickup zone.</span></div>
+    </article>
+
+    <section class="fallback" id="fallback-panel" aria-labelledby="fallback-title">
+      <div class="fallback-top">
+        <div class="fallback-icon" aria-hidden="true">♡</div>
+        <div class="fallback-copy">
+          <h2 id="fallback-title">No match? Your food can still do good.</h2>
+          <p>Find real organizations whose official pages say they accept food donations.</p>
+        </div>
+        <button class="button" id="show-options" type="button" aria-expanded="false">Find donation options <span aria-hidden="true">→</span></button>
+      </div>
+
+      <div class="fallback-expanded" id="fallback-content" hidden>
+        <form class="route-search" id="route-search">
+          <label class="area-field" for="area-input">
+            <span>Your ZIP code or neighborhood</span>
+            <input id="area-input" name="area" value="95125" maxlength="100" autocomplete="postal-code" placeholder="95125 or Willow Glen, CA" required>
+          </label>
+          <label for="drive-limit">
+            <span>Maximum drive</span>
+            <select id="drive-limit" name="max_drive_minutes">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </label>
+          <button class="button" id="search-routes" type="submit">Search nearby</button>
+        </form>
+
+        <div class="provider-status" id="provider-status" role="status" aria-live="polite">Checking live-routing setup…</div>
+
+        <div class="trust-note">
+          <span aria-hidden="true">✓</span>
+          <p><strong>What “verified” means</strong><br>Each place below has an official source stating that it accepts food. OpenStreetMap supplies the map—not the acceptance decision. Always recheck the source before driving.</p>
+        </div>
+
+        <div class="results-summary" id="results-summary" aria-live="polite">Enter an area to calculate live driving times.</div>
+        <div class="results-layout">
+          <div class="location-stack" id="location-list"></div>
+          <div class="map-wrap">
+            <div id="donation-map" aria-label="Map of verified donation destinations"></div>
+            <div class="map-overlay" id="map-status">Map data © OpenStreetMap contributors</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p><strong>Prototype only.</strong> Organization policies can change. Confirm current rules before traveling.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./node_modules/leaflet/dist/leaflet.js"></script>
+  <script src="./prototype.js"></script>
+</body>
+</html>
