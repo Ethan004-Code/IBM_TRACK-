@@ -1,12 +1,8 @@
-# IBM_TRACK
+# EchoPantry Exchange
 
-Small browser frontend backed by a Flask development API.
+A community food sharing prototype for listing single items or bundles of up to five groceries as an exchange or giveaway, posting food requests, receiving match notifications, and confirming pickups. It does not handle payments or donate food automatically.
 
 ## Run locally
-
-Open two terminals from the project folder.
-
-In terminal 1, start the backend:
 
 ```bash
 cd backend
@@ -16,13 +12,44 @@ pip install -r requirements.txt
 python app.py
 ```
 
-In terminal 2, serve the frontend:
+Flask serves both the frontend and API from the same origin. Open <http://127.0.0.1:5000>. This avoids separate frontend/backend host and CORS mismatches. If you choose to serve `frontend/` separately during development, the browser targets Flask on port 5000; set `window.ECHOPANTRY_API_URL` before `app.js` loads for a different API origin and configure `FRONTEND_ORIGINS` accordingly.
+
+## Supabase setup
+
+Create a Supabase project, run [`backend/supabase_schema.sql`](backend/supabase_schema.sql) in its SQL editor, and set these environment variables before starting Flask:
 
 ```bash
-cd frontend
-python3 -m http.server 8000
+export SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+export SUPABASE_ANON_KEY="YOUR_PUBLIC_ANON_KEY"
+export SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVER_SIDE_KEY"
+export FRONTEND_ORIGINS="http://127.0.0.1:8000,http://localhost:8000"
 ```
 
-Then open <http://127.0.0.1:8000> in your browser. The page checks the Flask health endpoint and sends problem descriptions to `http://127.0.0.1:5000/api/recommend`.
+Keep the service key private; never place it in frontend files. Flask uses the anon key for Supabase Auth and the service key for server-side database access. Protected API requests are validated against Supabase Auth and use an HttpOnly session cookie. For HTTPS deployments, set `COOKIE_SECURE=true`; if the frontend and API use different origins, set `FRONTEND_ORIGINS` to the deployed frontend origin. Configure Supabase email confirmation URLs for the app if email verification is enabled.
 
-The recommendation endpoint currently returns a placeholder because the AI and database are not connected yet.
+Signup and login use Supabase Auth, which stores password credentials. EchoPantry never stores password hashes. Account deletion sets `user_profiles.deleted_at`; it does not delete the Supabase identity or historical listings, offers, and ratings. Deleted users cannot log in or create new activity, and their active listings are hidden. Run the schema script again when upgrading an existing prototype database so it applies the soft-delete and authentication columns.
+
+Without Supabase credentials, the public sample listings remain viewable, but account creation and protected actions are disabled. The memory fallback resets whenever Flask restarts.
+
+## Prototype behavior and limits
+
+- Exchange matches use reciprocal item names, a shared public pickup zone, overlapping weekday/time windows when the entered availability is recognizable, and active deadlines. Python handles trade status and quantity/expiry validation. The sample matcher is deterministic. Natural-language request parsing uses watsonx.ai when its credentials are configured.
+- Giveaway requests and food requests generate in-app notifications. The browser checks for notifications every 15 seconds.
+- Both exchange participants must accept; both must confirm pickup before ratings are enabled. Reports and blocks are available on listing cards.
+- Estimated impact is calculated from completed sample trades and is labeled as an estimate.
+- The schema enables row-level security without browser-facing table policies; the Flask API accesses data with its server-only key after checking the Supabase Auth session. Review deployment secrets, email verification settings, and rate limits before public launch. The prototype is not affiliated with any official community or campus service.
+
+## Natural-language request parsing
+
+Install the updated backend dependencies, then configure these server-side watsonx.ai values before starting Flask:
+
+```bash
+export WATSONX_API_KEY="YOUR_IBM_CLOUD_API_KEY"
+export WATSONX_URL="https://us-south.ml.cloud.ibm.com"
+export WATSONX_PROJECT_ID="YOUR_WATSONX_PROJECT_ID"
+export WATSONX_MODEL_ID="ibm/granite-3-8b-instruct"
+```
+
+The authenticated `POST /api/ai/parse-request` endpoint is connected to the “Describe what you need” form. Select **Fill from description**, review the extracted fields, provide any missing deadline or pickup zone, then post. It accepts `{"text":"I need apples by Friday and can offer rice"}` and returns a validated `parsed_request` with wanted items, quantities, offered items, a normalized calendar date when one can be extracted, and optional location and pickup availability. Missing location or availability stays `null`; the parser does not invent it. The endpoint only parses and returns a draft. The user can review it before posting through `POST /api/requests`.
+
+watsonx.ai credentials stay in the Flask environment and are never sent to the browser. See IBM's [watsonx.ai Python SDK](https://ibm.github.io/watsonx-ai-python-sdk/) for supported models, regions, and configuration.
