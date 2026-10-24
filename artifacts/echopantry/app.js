@@ -224,7 +224,7 @@ const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 102
 let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen = 0, reviewing = false, publishing = false, editingId = null, reviewState = {kind:"idle"};
 $("#wanted-unit").innerHTML = `<option value="">Choose</option>` + UNITS.map(u => `<option>${u}</option>`).join("");
 function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
-function photoUrl(p) { return p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
+function photoUrl(p) { return p.local_url || p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
 
 function readDraft() {
   const miss = [], type = $("#listing-type").value, mode = $("#listing-mode").value, now = Date.now();
@@ -255,7 +255,7 @@ function readDraft() {
   const allergens = form.allergens.value.trim(); if (!allergens) miss.push('Allergens (write "Unknown" if unsure).');
   if (!form.fresh.checked) miss.push("Confirm food condition.");
   if (!form.storage_confirmed.checked) miss.push("Confirm storage and allergen disclosure.");
-  if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo) miss.push("Photo of the actual food.");
+  if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo?.id) miss.push(photo ? "Upload the selected photo successfully." : "Photo of the actual food.");
   const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? wu : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, photo_id:photo?.id || null};
   return {payload, key:JSON.stringify(payload), miss};
 }
@@ -290,29 +290,42 @@ setInterval(() => { if (approval && Date.now() >= approval.exp) renderReview(); 
 /* Photo */
 function renderPhoto() {
   const pv = $("#photo-preview"); pv.classList.toggle("busy", photoBusy);
-  pv.innerHTML = photoBusy ? `<span>Uploading...</span>` : photo ? `<img src="${esc(photoUrl(photo))}" alt="Selected food photo">` : `<span>No photo yet</span>`;
-  $("#photo-remove").hidden = !photo || photoBusy;
+  pv.innerHTML = photo ? `<img src="${esc(photoUrl(photo))}" alt="Selected food photo preview">` : `<span>Your image preview</span>`;
+  $("#photo-remove").hidden = !photo;
+  $("#photo-retry").hidden = !photo?.file || photoBusy;
+  $("#photo-retry").textContent = sessionUser ? "Retry upload" : "Sign in to upload";
+  $("#photo-filename").textContent = photo?.filename || (photo?.id ? "Saved listing photo." : "No image selected.");
   document.querySelector("label.photo-pick").textContent = photo ? "Replace photo" : "Choose photo";
 }
-function discardPhoto(p) { if (p?.owned && p.id) api(`/listing-photos/${encodeURIComponent(p.id)}`, {method:"DELETE"}).catch(() => {}); }
-$("#photo-input").addEventListener("change", async e => {
+function discardPhoto(p) { if (p?.local_url) URL.revokeObjectURL(p.local_url); if (p?.owned && p.id) api(`/listing-photos/${encodeURIComponent(p.id)}`, {method:"DELETE"}).catch(() => {}); }
+$("#photo-input").addEventListener("change", e => {
   const file = e.target.files[0], ps = $("#photo-status"); e.target.value = ""; if (!file) return;
-  if (!sessionUser) return openAuth();
   if (!["image/jpeg","image/png","image/webp"].includes(file.type)) { ps.textContent = "Use a JPG, PNG or WebP image."; return; }
   if (file.size > MAX_PHOTO) { ps.textContent = "That photo is larger than 5 MB. Choose a smaller one."; return; }
-  const gen = ++uploadGen; photoBusy = true; ps.textContent = "Uploading photo..."; renderPhoto(); invalidateApproval(true);
+  const old = photo; photo = {id:null, local_url:URL.createObjectURL(file), file, filename:file.name, owned:false, guestDraft:!sessionUser}; discardPhoto(old);
+  renderPhoto(); invalidateApproval(true);
+  if (!sessionUser) { ps.textContent = "Photo selected on this device. Sign in to upload it, complete the details, and request Bob's review."; return; }
+  uploadSelectedPhoto();
+});
+async function uploadSelectedPhoto() {
+  if (!photo?.file) return;
+  if (!sessionUser) return openAuth();
+  const file = photo.file, ps = $("#photo-status");
+  const gen = ++uploadGen; photoBusy = true; ps.textContent = "Uploading photo... Your preview is not approval to publish."; renderPhoto(); invalidateApproval(true);
   const fd = new FormData(); fd.append("photo", file);
   try {
     const res = await fetch(`${API}/listing-photos`, {method:"POST", credentials:"include", body:fd}).catch(() => { throw Error("Cannot reach the EchoPantry server."); });
     let data = {}; try { data = await res.json(); } catch {}
     if (!res.ok) throw Error(data.error || `Upload failed (${res.status}).`);
-    const fresh = {id:data.photo_id, preview_url:data.preview_url, owned:true};
+    if (!data.photo_id || !data.preview_url) throw Error("The upload did not return a saved photo. Please retry.");
+    const fresh = {id:data.photo_id, preview_url:data.preview_url, filename:file.name, owned:true};
     if (gen !== uploadGen || !sessionUser) { discardPhoto(fresh); return; }
     const old = photo; photo = fresh; discardPhoto(old); ps.textContent = "Photo uploaded. Bob will check it with your details.";
-  } catch (er) { if (gen === uploadGen) ps.textContent = `${er.message} Your other entries are kept.`; }
+  } catch (er) { if (gen === uploadGen) ps.textContent = `${er.message} The image is selected but not uploaded. Your entries are kept; use Retry upload when ready.`; }
   finally { if (gen === uploadGen) { photoBusy = false; renderPhoto(); invalidateApproval(true); } }
-});
-$("#photo-remove").onclick = () => { discardPhoto(photo); photo = null; $("#photo-status").textContent = "Photo removed. A photo is required to publish."; renderPhoto(); invalidateApproval(true); };
+}
+$("#photo-retry").onclick = uploadSelectedPhoto;
+$("#photo-remove").onclick = () => { uploadGen++; photoBusy = false; discardPhoto(photo); photo = null; $("#photo-status").textContent = "Photo removed. A photo is required to publish."; renderPhoto(); invalidateApproval(true); };
 
 /* Bob review */
 $("#review-button").onclick = async () => {
@@ -355,7 +368,7 @@ form.addEventListener("submit", async e => {
 
 /* Editor state */
 function resetEditor(discard = true) {
-  uploadGen++; if (discard) discardPhoto(photo); photo = null; photoBusy = false; editingId = null;
+  uploadGen++; if (discard) discardPhoto(photo); else if (photo?.local_url) URL.revokeObjectURL(photo.local_url); photo = null; photoBusy = false; editingId = null;
   resetListingForm(); $("#photo-status").textContent = ""; $("#edit-banner").hidden = true; $("#cancel-edit").hidden = true; $("#listing-form-title").textContent = "Create a listing";
   renderPhoto(); invalidateApproval(false);
 }
@@ -398,7 +411,7 @@ async function refreshNotifications() {
 
 /* Auth */
 function setAuthMode(mode) { authMode = mode; const s = mode === "signup"; $("#auth-title").textContent = s ? "Join EchoPantry" : "Welcome back"; $("#auth-subtitle").textContent = s ? "Create an account to share and find food." : "Sign in to list food and manage your exchanges."; $("#display-name-field").hidden = !s; $("#auth-form [name=display_name]").required = s; $("#auth-form [name=password]").autocomplete = s ? "new-password" : "current-password"; $("#auth-submit").textContent = s ? "Create account" : "Sign in"; $("#login-tab").classList.toggle("selected", !s); $("#signup-tab").classList.toggle("selected", s); }
-function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); if (editingId || photo || approval || reviewing) resetEditor(false); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
+function clearScoped() { myListings = []; myOffers = []; myRequests = []; offerArea.hidden = true; offerArea.innerHTML = ""; inedible.clear(); if (editingId || (photo && !photo.guestDraft) || approval || reviewing) resetEditor(false); $("#notifications-list").innerHTML = `<p class="muted">No notifications yet.</p>`; $("#notification-count").textContent = "0 NEW"; }
 function renderSession() { const name = sessionUser?.display_name || "Guest"; $("#profile-name").textContent = name; $("#profile-avatar").textContent = name.charAt(0).toUpperCase(); $("#auth-button").hidden = !!sessionUser; $("#logout-button").hidden = !sessionUser; $("#delete-account").hidden = !sessionUser; $("#listing-auth-help").hidden = !!sessionUser; renderReview(); $("#request-auth-help").hidden = !!sessionUser; if (!sessionUser) clearScoped(); renderActivity(); renderListings(); }
 function openAuth(mode = "login") { setAuthMode(mode); $("#auth-notice").hidden = true; $("#auth-dialog").showModal(); }
 $("#auth-button").onclick = () => openAuth(); $("#listing-auth-button").onclick = () => openAuth(); $("#request-auth-button").onclick = () => openAuth(); $("#close-auth").onclick = () => $("#auth-dialog").close(); $("#login-tab").onclick = () => setAuthMode("login"); $("#signup-tab").onclick = () => setAuthMode("signup");
@@ -406,11 +419,30 @@ $("#auth-form").addEventListener("submit", async e => {
   e.preventDefault(); const f = e.currentTarget, v = new FormData(f), s = authMode === "signup", m = $("#auth-notice"), b = $("#auth-submit"); m.hidden = true; b.disabled = true;
   try { const r = await post(`/auth/${s ? "signup" : "login"}`, s ? {display_name:v.get("display_name"), email:v.get("email"), password:v.get("password")} : {email:v.get("email"), password:v.get("password")});
     if (r.email_confirmation_required) return setNotice(m, "Check your email to confirm your account, then sign in.", true);
-    sessionUser = r.user; $("#auth-dialog").close(); f.reset(); renderSession(); await load(); showToast(s ? "Welcome to EchoPantry." : "You are signed in.");
+    sessionUser = r.user; if (photo?.file) photo.guestDraft = false; $("#auth-dialog").close(); f.reset(); renderSession(); if (photo?.file) uploadSelectedPhoto(); await load(); showToast(s ? "Welcome to EchoPantry." : "You are signed in.");
   } catch (er) { setNotice(m, er.message); } finally { b.disabled = false; }
 });
 $("#logout-button").onclick = async () => { resetEditor(true); try { await post("/auth/logout"); } catch {} sessionUser = null; renderSession(); await load(); showToast("Signed out."); };
 $("#delete-account").onclick = async () => { if (!confirm("Delete your account? This deactivates sign-in and hides your active listings.")) return; try { await api("/auth/account", {method:"DELETE"}); sessionUser = null; renderSession(); await load(); showToast("Account deactivated."); } catch (e) { showToast(e.message); } };
+
+// Keep the image action visible from the first screen, and show the uploader
+// before the longer food-details fields when the publishing form opens.
+const photoField = $("#photo-input").closest(".photo-field");
+$("#edit-banner").after(photoField);
+const postPhotoLink = document.createElement("a");
+postPhotoLink.href = "#create";
+postPhotoLink.className = "post-photo-nav";
+postPhotoLink.textContent = "Post with photo";
+document.querySelector(".topbar nav").append(postPhotoLink);
+const heroPostLink = document.querySelector('.welcome a[href="#create"]');
+heroPostLink.textContent = "Post food with photo";
+function startPhotoPost(e) {
+  e.preventDefault();
+  photoField.scrollIntoView({behavior:"instant", block:"start"});
+  $("#photo-input").click();
+}
+postPhotoLink.addEventListener("click", startPhotoPost);
+heroPostLink.addEventListener("click", startPhotoPost);
 
 async function initialize() {
   resetEditor(false); renderSession(); checkHealth();

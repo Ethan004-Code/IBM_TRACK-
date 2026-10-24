@@ -156,3 +156,9 @@ grant execute on function public.echopantry_snapshot() to service_role;
 grant execute on function public.echopantry_commit(bigint,jsonb) to service_role;
 notify pgrst, 'reload schema';
 commit;
+
+-- The result below confirms the update, rather than only "No rows returned".
+select
+  public.echopantry_snapshot()->>'schema_version' as schema_version,
+  to_regclass('public.listing_photos') as photo_table,
+  to_regclass('public.listing_approvals') as approval_table;

@@ -48,6 +48,7 @@ Listings (up to five bundled items), live Bob surplus interpretation with manual
 The uploaded interview is the acceptance source. The whole community is eligible; this is not a students-only product. IBM Bob must run during interaction, not merely generate code.
 
 - Every listing requires Bob approval and a checked photo before posting. Required fields must be complete before asking Bob. Manual entry never bypasses approval.
+- Provide a clearly visible photo-posting action for users who want to publish; do not rely on a buried image field.
 - Edits, including switching to giveaway, require a fresh approval bound to the exact details, owner and sanitized photo. Approvals are single-use and expire after 15 minutes.
 - Older unreviewed rows remain available to their owners for editing but are not publicly available until re-reviewed. Photo/content checks never certify food safety.
 

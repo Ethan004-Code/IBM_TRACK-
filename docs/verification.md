@@ -7,6 +7,8 @@
 - Private App Storage upload/download/delete was checked with temporary images; all temporary objects were removed.
 - Real Bob ACP image prompts inspected image contents, accepted a relevant three-onion photograph after deterministic server validation, and rejected an unrelated blue image during integration. The worker has no filesystem, terminal, MCP or other tool access. No production listing was created by these probes.
 - OpenAPI generation, workspace type checks, production frontend build and JavaScript syntax checks pass.
+- The publishing form uses a visible native image input. A frontend state check covers immediate local preview, keeping the selected image after an upload failure, retry, successful upload, preview URL cleanup and removing an image during an in-flight upload without restoring a stale result. A local preview never counts as an uploaded or approved photo.
+- The homepage and desktop navigation expose photo-posting actions that open the image chooser and bring the uploader into view. The uploader comes before the longer listing fields. A frontend state check confirms guest selection/preview without opening sign-in, retaining the selected file when sign-in is requested, and keeping posting blocked after a failed authenticated upload.
 - **Pending:** the user must apply the latest `artifacts/api-server/backend/interview_migration.sql` to the existing Supabase project. The old database schema is intentionally blocked from new writes until this update; existing rows are preserved.
 - The earlier live API results below predate mandatory photo approval. The updated live checker now requires real food-photo fixtures and the latest schema. The signed-in browser photo-upload/review/publish flow has not yet been exercised.
 
