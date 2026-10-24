@@ -31,7 +31,8 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
   vm.runInContext(source + `
     globalThis.ui = { S, viewImpact, refreshImpact, conditionOptions,
       viewCompose, viewReview, onBind, readDraft, signedOut,
-      spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard, actions };
+      spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard, actions,
+      wantedText, offerBlock };
   `, context);
   return { ...context.ui, nodes, dispatch(type, target) {
     for (const handler of listeners.get(type) || []) handler({type, target});
@@ -95,6 +96,39 @@ test("Share explains Bob and never offers Opened package", () => {
   assert.ok(app.viewCompose().includes(message));
   assert.ok(app.viewReview().includes(message));
   assert.doesNotMatch(app.conditionOptions(""), /Opened package|value="opened"/);
+});
+
+test("swaps require wanted food but no return quantity, retaining offered count limits", () => {
+  const app = ui();
+  assert.match(app.readDraft().miss.join(" "), /Say what food you'd like in return/);
+  app.S.draft.wanted_food = "cans of beans";
+  // Old drafts must not revive a hidden return-quantity requirement.
+  app.S.draft.wanted_quantity = 99;
+  const html = app.viewReview();
+  assert.doesNotMatch(html, /want-qty|data-bind="draft.wanted_quantity"/);
+  assert.match(html, /Swaps exchange the full amounts shown in both listings/);
+  assert.doesNotMatch(app.readDraft().miss.join(" "), /food you'd like|return quantity/);
+  assert.equal(app.readDraft().payload.wanted_quantity, null);
+  assert.equal(app.readDraft().payload.wanted_food, "cans of beans");
+  app.S.draft.items[0].quantity = "100";
+  assert.match(app.readDraft().miss.join(" "), /99/);
+  app.S.draft.items[0].quantity = "3";
+  assert.equal(app.readDraft().payload.item_details[0].quantity, 3);
+  assert.equal(app.wantedText({wanted_food: "rice", wanted_unit: "bag", wanted_quantity: 4}), "bags of rice");
+});
+
+test("swap acceptance shows full actual amounts for both participants", () => {
+  const app = ui();
+  const offer = {id: "swap", status: "pending",
+    participants: [{user_id: "a", name: "Alice"}, {user_id: "b", name: "Bob"}],
+    give_items: [{name: "onions", quantity: 3, unit: "each"}],
+    receive_items: [{name: "cans of beans", quantity: 2, unit: "each"}],
+    location: "Library", pickup_start: new Date(Date.now() + 3600000).toISOString(),
+    pickup_end: new Date(Date.now() + 7200000).toISOString()};
+  app.S.user = {id: "a"};
+  assert.match(app.offerBlock(offer), /you give 3 onions, you get 2 cans of beans/);
+  app.S.user = {id: "b"};
+  assert.match(app.offerBlock(offer), /you give 2 cans of beans, you get 3 onions/);
 });
 
 test("allergen chips require a choice and keep old free-text declarations untouched", () => {

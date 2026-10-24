@@ -165,11 +165,11 @@ def counted_food(name, unit="each"):
     return unit, name
 
 
-def fulfills(listing, wanted):
+def fulfills(listing, wanted, *, require_quantity=True):
     wanted_name, unit = wanted.get("wanted_food", ""), wanted.get("wanted_unit")
     amount = wanted.get("wanted_quantity")
     return any(counted_food(i["name"], i.get("unit")) == counted_food(wanted_name, unit)
-               and amount is not None and i["quantity"] >= amount
+               and (not require_quantity or (amount is not None and i["quantity"] >= amount))
                for i in listing.get("item_details", []))
 
 
@@ -187,7 +187,7 @@ def matches(listing):
         if other["user_id"] not in g.active_users or blocked(listing["user_id"], other["user_id"]):
             continue
         pickup = overlap(listing, other)
-        if not pickup or not fulfills(listing, other) or not fulfills(other, listing):
+        if not pickup or not fulfills(listing, other, require_quantity=False) or not fulfills(other, listing, require_quantity=False):
             continue
         if any(o["status"] not in {"declined", "completed"} and
                {o["listing_id"], o["match_id"]} == {listing["id"], other["id"]}
@@ -196,7 +196,7 @@ def matches(listing):
         result.append(dict(listing=other, give=listing["items"], receive=other["items"],
                            give_items=listing["item_details"], receive_items=other["item_details"],
                            pickup_start=pickup[0], pickup_end=pickup[1], location=listing["location"],
-                           reason="Reciprocal foods and explicit quantities/units match; public pickup windows overlap. Entire bundles stay together."))
+                            reason="Reciprocal foods match and public pickup windows overlap. Both full listed amounts are exchanged; entire bundles stay together."))
     # Urgency first, then longer pickup overlap; never claims travel optimization.
     result.sort(key=lambda m: (m["listing"]["deadline"],
                 -(instant(m["pickup_end"]) - instant(m["pickup_start"])).total_seconds(), m["listing"]["id"]))
@@ -420,7 +420,7 @@ def install_rules(app, legacy):
                 snapshot = row.get("item_details") if giveaway else row["give_items" if index == 0 else "receive_items"]
                 if snapshot != listing["item_details"]:
                     raise Conflict("Food contents changed. Create a new offer.")
-            if not giveaway and (any(l["mode"] != "exchange" for l in involved) or not fulfills(involved[0], involved[1]) or not fulfills(involved[1], involved[0]) or not overlap(*involved)):
+            if not giveaway and (any(l["mode"] != "exchange" for l in involved) or not fulfills(involved[0], involved[1], require_quantity=False) or not fulfills(involved[1], involved[0], require_quantity=False) or not overlap(*involved)):
                 raise Conflict("This exchange no longer satisfies matching rules.")
             row["accepted_by"] = sorted(set(row.get("accepted_by", [])) | {uid})
             if giveaway or set(row["accepted_by"]) == members:

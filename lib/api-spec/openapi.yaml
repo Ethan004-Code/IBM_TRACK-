@@ -346,7 +346,7 @@ components:
           maxItems: 5
           items: { $ref: "#/components/schemas/FoodItem" }
         wanted_food: { type: string }
-        wanted_quantity: { type: integer, minimum: 1, maximum: 99 }
+        wanted_quantity: { type: ["integer", "null"], minimum: 1, maximum: 99, deprecated: true, description: "Legacy field, ignored for exchanges. Swaps exchange both full listings without a required return quantity." }
         wanted_unit: { type: string, default: each, enum: [each, g, kg, oz, lb, bag, can, box, bottle, package] }
         location: { type: string, minLength: 1, maxLength: 100, description: "Free-text public pickup spot; existing location text is retained." }
         pickup_start: { type: string, format: date-time, description: "Timezone required; now through one calendar year ahead, strictly before pickup_end." }

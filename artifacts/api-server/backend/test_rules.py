@@ -62,10 +62,30 @@ class RuleTests(unittest.TestCase):
         self.invoke("decide_offer", offer_id=offer["id"], data={"accept": True})
         self.invoke("decide_offer", uid="b", offer_id=offer["id"], data={"accept": True})
 
-    def test_reciprocal_quantity_compatible_match(self):
+    def test_swap_matches_ignore_return_quantities(self):
         self.assertEqual(len(rules.matches(self.a)), 1)
         self.b["wanted_quantity"] = 6
-        self.assertEqual(rules.matches(self.a), [])
+        self.assertEqual(len(rules.matches(self.a)), 1)
+        self.a["wanted_quantity"] = None
+        self.b.pop("wanted_quantity")
+        self.assertEqual(len(rules.matches(self.a)), 1)
+
+    def test_full_amount_swap_accepted_and_completed_without_return_quantities(self):
+        self.a["wanted_quantity"] = None
+        self.b["wanted_quantity"] = 99  # Existing rows no longer restrict matching.
+        self.a["item_details"][0]["quantity"] = 3
+        self.b["item_details"][0]["quantity"] = 2
+        offer = self.offer()
+        self.assertEqual(offer["give_items"][0]["quantity"], 3)
+        self.assertEqual(offer["receive_items"][0]["quantity"], 2)
+        self.accept_both(offer)
+        self.assertEqual(offer["status"], "confirmed")
+        self.invoke("complete_offer", offer_id=offer["id"])
+        self.assertEqual(offer["status"], "completion_pending")
+        self.invoke("complete_offer", uid="b", offer_id=offer["id"])
+        self.assertEqual(offer["status"], "completed")
+        self.assertEqual(self.a["status"], "traded")
+        self.assertEqual(self.b["status"], "traded")
 
     def test_units_are_not_implicitly_converted(self):
         self.b["wanted_unit"] = "kg"

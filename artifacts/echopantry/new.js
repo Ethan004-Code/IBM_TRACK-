@@ -68,7 +68,7 @@ function listingTitle(l) {
   return "Food listing";
 }
 function wantedText(l) {
-  if (l.wanted_food) return itemText({ name: l.wanted_food, quantity: l.wanted_quantity, unit: l.wanted_unit }).replace(/^./, c => c.toLowerCase());
+  if (l.wanted_food) return foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity).replace(/^./, c => c.toLowerCase());
   return (l.wants || []).join(", ");
 }
 function isPackaged(l) { const items = itemsOf(l); return items.length > 0 && items.every(i => i.category === "shelf_stable"); }
@@ -101,7 +101,7 @@ const icon = (n, s = 20, cls = "") => `<svg class="ic ${cls}" width="${s}" heigh
 
 /* ---------------- State ---------------- */
 function emptyItem() { return { name: "", quantity: "", condition: "", printed_date: "", date_type: "" }; }
-function emptyDraft() { return { items: [emptyItem()], mode: "exchange", wanted_food: "", wanted_quantity: "", location: "", day: "", from: "", until: "", deadline: "", allergens: "", fresh: false, storage_confirmed: false }; }
+function emptyDraft() { return { items: [emptyItem()], mode: "exchange", wanted_food: "", location: "", day: "", from: "", until: "", deadline: "", allergens: "", fresh: false, storage_confirmed: false }; }
 const S = {
   tab: "discover", user: null,
   listings: [], loaded: false, loadError: "",
@@ -264,7 +264,7 @@ function viewReview() {
   const add = d.items.length < MAX_ITEMS ? `<button type="button" class="row row-btn row-add" data-action="add-item">${icon("plus", 18)}<span class="grow">Add another item (up to 5)</span></button>` : "";
   const how = d.mode === "exchange"
     ? `<div class="group"><div class="item-ed"><div class="item-top"><label class="sr-only" for="want-name">Food you'd like in return</label><input id="want-name" data-bind="draft.wanted_food" value="${esc(d.wanted_food)}" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
-        <div class="item-grid"><label class="mini" for="want-qty"><span>Quantity</span><input id="want-qty" ${QTY_ATTRS} data-bind="draft.wanted_quantity" value="${esc(d.wanted_quantity)}"></label></div></div></div>`
+        <p class="foot">No return quantity required. Swaps exchange the full amounts shown in both listings, including every item in a bundle.</p></div></div>`
     : `<p class="foot" style="margin:0 4px">Neighbors can ask for it and you choose who gets it. Nothing is promised until you approve.</p>`;
   return `<header class="vh"><div class="vh-row"><button type="button" class="back-btn" data-action="back-compose">${icon("chevL", 22)}Back</button>${accountBtn()}</div>
       <h1 class="large-title sm">${S.editingId ? "Edit your listing" : "Check your listing"}</h1><p class="vh-sub">Bob is RePlate's AI helper. It drafts your listing and checks it before it goes live.</p><p class="vh-sub">Nothing goes live until Bob checks it and you publish.</p></header>
@@ -317,8 +317,8 @@ function readDraft() {
     const pc = printedCheck(it.printed_date, it.date_type, now);
     pc.errors.forEach(e => miss.push(`${n}${e}`)); pc.warnings.forEach(w => warn.push(`${n}${w}`));
   });
-  const wf = String(d.wanted_food).trim(), wq = parseQty(d.wanted_quantity);
-  if (mode === "exchange") { if (!wf) miss.push("Say what food you'd like in return."); const qe = qtyError(d.wanted_quantity, "amount for the food you'd like"); if (qe) miss.push(qe); }
+  const wf = String(d.wanted_food).trim();
+  if (mode === "exchange" && !wf) miss.push("Say what food you'd like in return.");
   const locationError = spotError(d.location); if (locationError) miss.push(locationError);
   const ps = d.day && d.from ? toUtcIso(`${d.day}T${d.from}`) : null, pe = d.day && d.until ? toUtcIso(`${d.day}T${d.until}`) : null, dl = toUtcIso(d.deadline);
   if (!d.day) { miss.push("Pick a pickup day."); if (!dl) miss.push('Set "Available until".'); }
@@ -328,7 +328,7 @@ function readDraft() {
   if (!d.fresh) miss.push("Confirm the food's condition.");
   if (!d.storage_confirmed) miss.push("Confirm storage and allergens.");
   if (S.photoBusy) miss.push("Wait for the photo to finish uploading."); else if (!S.photo?.id) miss.push(S.photo ? "Upload your photo (tap Retry)." : "Add a photo of the actual food.");
-  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: mode === "exchange" ? wq : null, wanted_unit: mode === "exchange" ? CANON_UNIT : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, ...allergenPayload(d.allergens), photo_id: S.photo?.id || null };
+  const payload = { mode, listing_type: type, item_details: items, wanted_food: mode === "exchange" ? wf : null, wanted_quantity: null, wanted_unit: mode === "exchange" ? CANON_UNIT : null, location: d.location, pickup_start: ps, pickup_end: pe, deadline: dl, timezone: TZ, fresh: !!d.fresh, storage_confirmed: !!d.storage_confirmed, allergens, ...allergenPayload(d.allergens), photo_id: S.photo?.id || null };
   return { payload, key: JSON.stringify(payload), miss, warn };
 }
 function approvalValid(d) { return !!(S.approval && S.user && S.approval.key === d.key && Date.now() < S.approval.exp && S.approval.photo_id === S.photo?.id); }
@@ -441,7 +441,7 @@ function editListing(l, over = {}) {
   const items = itemsOf(l).slice(0, MAX_ITEMS).map(i => typeof i === "string" ? fromApiItem({ name: i }) : fromApiItem(i));
   d.items = items.length ? items : [emptyItem()];
   d.mode = over.mode || l.mode || "exchange";
-  d.wanted_food = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; d.wanted_quantity = l.wanted_quantity ?? "";
+  d.wanted_food = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : "";
   d.location = l.location || "";
   d.day = dayPart(l.pickup_start); d.from = timePart(l.pickup_start); d.until = timePart(l.pickup_end); d.deadline = toLocalInput(l.deadline);
   d.allergens = l.allergens || "";

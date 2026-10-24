@@ -38,7 +38,7 @@ def allergen_declaration(data):
 
 
 def validated_fields(data):
-    from rules import UNITS, eligible, quantity, text, window, pickup_spot, norm
+    from rules import UNITS, eligible, text, window, pickup_spot, norm
     if not isinstance(data, dict):
         raise BadRequest("Supply listing details as an object.")
     mode, size = data.get("mode"), data.get("listing_type")
@@ -65,7 +65,8 @@ def validated_fields(data):
         wanted = text(data.get("wanted_food"), "one wanted food")
         if "," in wanted:
             raise BadRequest("Choose only one wanted food per exchange listing.")
-        wanted_qty = quantity(data.get("wanted_quantity"))
+        # Return amounts are not constraints: both full listings are exchanged.
+        # Ignore legacy clients' wanted_quantity, keeping the nullable column.
         wanted_unit = data.get("wanted_unit") or "each"
         if wanted_unit not in UNITS:
             raise BadRequest("Choose the wanted food unit.")

@@ -44,13 +44,14 @@ class QuantityDateTests(unittest.TestCase):
         self.assertFalse(rules.fulfills(old, dict(wanted, wanted_food="kg of rice")))
         self.assertFalse(rules.fulfills(old, dict(wanted, wanted_quantity=4)))
 
-    def test_swap_quantity_uses_same_bounds_and_defaults_to_each(self):
-        data = dict(self.valid, mode="exchange", wanted_food="bags of rice", wanted_quantity=3)
+    def test_swap_needs_food_but_no_return_quantity(self):
+        data = dict(self.valid, mode="exchange", wanted_food="bags of rice")
         result = listing_review.validated_fields(data)
         self.assertEqual(result["wanted_unit"], "each")
-        for amount in (0, 100, 2.5):
-            with self.subTest(amount=amount), self.assertRaises(BadRequest):
-                listing_review.validated_fields(dict(data, wanted_quantity=amount))
+        self.assertIsNone(result["wanted_quantity"])
+        self.assertIsNone(listing_review.validated_fields(dict(data, wanted_quantity=99))["wanted_quantity"])
+        with self.assertRaises(BadRequest):
+            listing_review.validated_fields(dict(data, wanted_food=""))
 
     def test_listing_dates_rejected_before_photo_review(self):
         for field in ("pickup_start", "pickup_end", "deadline"):

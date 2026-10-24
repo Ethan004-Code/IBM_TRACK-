@@ -20,10 +20,13 @@ export interface ListingDraft {
     item_details: FoodItem[];
     wanted_food?: string;
     /**
+       * Legacy field, ignored for exchanges. Swaps exchange both full listings without a required return quantity.
+       * @deprecated
        * @minimum 1
        * @maximum 99
+       * @nullable
        */
-    wanted_quantity?: number;
+    wanted_quantity?: number | null;
     wanted_unit?: ListingDraftWantedUnit;
     /**
        * Free-text public pickup spot; existing location text is retained.

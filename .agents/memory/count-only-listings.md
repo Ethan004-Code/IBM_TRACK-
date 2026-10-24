@@ -13,7 +13,13 @@ Matching must also recognize that an old "rice" + "bag" record and a new "bags o
 
 **Why:** Changing presentation alone would make equivalent old and new listings stop matching.
 
-**How to apply:** Normalize the unit-in-name representation for identity comparison while retaining quantity requirements and the prohibition on implicit physical-unit conversions.
+**How to apply:** Normalize the unit-in-name representation for identity comparison without implicit physical-unit conversions. Keep quantity requirements for offered food and standalone food requests, not for what a swap listing wants in return.
+
+Swaps do not require a return quantity or filter matches by it, including old rows with a stored return quantity. Both parties exchange the full listed amounts, and entire bundles stay together.
+
+**Why:** The user explicitly chose full listed amounts rather than choosing partial amounts when proposing; they do not want to specify how many units they want in return.
+
+**How to apply:** Show the desired food without a requested count, but show both actual full offers before acceptance. Keep offered quantities at whole numbers from 1 to 99. Do not silently relax standalone food-request quantities.
 
 Past Best by dates are warnings, not automatic rejection or evidence of spoilage. Past Use by and Expiration dates must be rejected.
 

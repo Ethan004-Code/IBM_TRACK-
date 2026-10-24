@@ -77,7 +77,7 @@ function renderListings() {
   if (!visible.length) { listingsEl.innerHTML = `<div class="empty-listings">${loaded ? "No open listings match these filters. Be the first to share." : "Loading listings..."}</div>`; return; }
   listingsEl.innerHTML = visible.map(l => {
     const items = itemsOf(l), give = l.mode === "giveaway", owner = sessionUser && sessionUser.id === l.user_id;
-    const wanted = l.wanted_food ? `${l.wanted_quantity ?? ""} ${foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity)}`.trim() : (l.wants || []).join(", ");
+    const wanted = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : (l.wants || []).join(", ");
     return `<article class="listing-card"><div class="card-art ${give ? "" : "orange"}">${l.photo_id ? `<img class="card-photo" src="${API}/listing-photos/${encodeURIComponent(l.photo_id)}" alt="Photo of ${esc(items.map(i => i.name || i).join(", "))}" loading="lazy" onerror="this.remove()">` : ""}<span class="urgency ${give ? "gift-tag" : ""}">${give ? "Free giveaway" : "Exchange"}</span><span class="produce" aria-hidden="true">${art(items)}</span></div><div class="card-body"><div class="owner-row"><span class="owner"><span class="avatar" aria-hidden="true">${esc((l.name || "C").charAt(0).toUpperCase())}</span>${esc(l.name || "Community member")} &middot; ${esc(l.location)}</span><span class="rating">${l.rating ? Number(l.rating).toFixed(1) + " rating" : "New"}</span></div><div class="bundle-label">${items.length > 1 ? `BUNDLE &middot; ${items.length} ITEMS` : "SINGLE ITEM"}</div><div class="chips">${items.map(i => `<span class="chip">${itemText(i)}</span>`).join("")}</div>${!give && wanted ? `<div class="wants-label">HOPING TO FIND</div><div class="chips wants"><span class="chip">${esc(wanted)}</span></div>` : ""}<p class="deadline">Pickup ${esc(windowText(l.pickup_start, l.pickup_end))}</p>${l.allergens ? `<p class="deadline">Allergens: ${esc(l.allergens)}</p>` : ""}<div class="card-bottom"><span class="deadline">Until <strong>${esc(fmt(l.deadline))}</strong></span><button class="swap-button" data-act="${owner ? "manage" : give ? "giveaway" : "exchange"}" data-id="${esc(l.id)}">${owner ? "Next steps" : give ? "Request item" : "Match my listing"}</button></div>${!owner ? `<div class="trust-actions"><button data-report="${esc(l.user_id)}">Report</button><button data-block="${esc(l.user_id)}">Block user</button></div>` : ""}</div></article>`;
   }).join("");
 }
@@ -379,7 +379,9 @@ const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 102
   $("#listing-form-title").insertAdjacentElement("afterend", help);
 }
 let photo = null, photoBusy = false, uploadGen = 0, approval = null, reviewGen = 0, reviewing = false, publishing = false, editingId = null, reviewState = {kind:"idle"};
-form.wanted_food.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(form.wanted_quantity);
+form.wanted_food.placeholder = ITEM_PLACEHOLDER;
+form.wanted_quantity?.closest("label")?.remove();
+{ const help = document.createElement("p"); help.textContent = "No return quantity required. Swaps exchange the full amounts shown in both listings, including every item in a bundle."; form.wanted_food.closest("label").insertAdjacentElement("afterend", help); }
 { const rf = $("#request-form"); rf.item.placeholder = ITEM_PLACEHOLDER; setQtyAttrs(rf.quantity); rf.addEventListener("focusin", () => applyPickupLimits(rf)); applyPickupLimits(rf); }
 function toLocalInput(v) { const d = new Date(v); if (!v || Number.isNaN(d.getTime())) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function photoUrl(p) { return p.local_url || p.preview_url || `${API}/listing-photos/${encodeURIComponent(p.id)}`; }
@@ -400,8 +402,8 @@ function readDraft() {
     const pc = printedCheck(it.printed_date, it.date_type, now); pc.errors.forEach(x => miss.push(`${n}: ${x}`)); pc.warnings.forEach(x => warn.push(`${n}: ${x}`));
   });
   items.forEach(it => delete it.rawQty);
-  const wf = form.wanted_food.value.trim(), wq = parseQty(form.wanted_quantity.value);
-  if (mode === "exchange") { if (!wf) miss.push("Food you want in return."); const qe = qtyError(form.wanted_quantity.value, "quantity for the food you want"); if (qe) miss.push(qe); }
+  const wf = form.wanted_food.value.trim();
+  if (mode === "exchange" && !wf) miss.push("Food you want in return.");
   const locationError = spotError(form.location.value); if (locationError) miss.push(locationError);
   const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
   windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true}, now).forEach(x => miss.push(x));
@@ -411,7 +413,7 @@ function readDraft() {
   if (!form.fresh.checked) miss.push("Confirm food condition.");
   if (!form.storage_confirmed.checked) miss.push("Confirm storage and allergen disclosure.");
   if (photoBusy) miss.push("Wait for the photo upload to finish."); else if (!photo?.id) miss.push(photo ? "Upload the selected photo successfully." : "Photo of the actual food.");
-  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:mode === "exchange" ? wq : null, wanted_unit:mode === "exchange" ? CANON_UNIT : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, ...allergenPayload(form.allergens.value), photo_id:photo?.id || null};
+  const payload = {mode, listing_type:type, item_details:items, wanted_food:mode === "exchange" ? wf : null, wanted_quantity:null, wanted_unit:mode === "exchange" ? CANON_UNIT : null, location:form.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ, fresh:form.fresh.checked, storage_confirmed:form.storage_confirmed.checked, allergens, ...allergenPayload(form.allergens.value), photo_id:photo?.id || null};
   return {payload, key:JSON.stringify(payload), miss, warn};
 }
 function approvalValid(d) { return !!(approval && sessionUser && approval.key === d.key && Date.now() < approval.exp && approval.photo_id === photo?.id); }
@@ -539,7 +541,7 @@ function editListing(l, over = {}) {
   const items = itemsOf(l).slice(0, 5); $("#listing-type").value = items.length > 1 ? "bundle" : "single";
   (items.length ? items : [{}]).forEach(itemRow);
   $("#listing-mode").value = over.mode || l.mode || "exchange"; setMode();
-  form.wanted_food.value = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; form.wanted_quantity.value = l.wanted_quantity ?? "";
+  form.wanted_food.value = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : "";
   form.location.value = l.location || ""; updateSpotCounters();
   form.pickup_start.value = toLocalInput(l.pickup_start); form.pickup_end.value = toLocalInput(l.pickup_end); form.deadline.value = toLocalInput(l.deadline);
   form.allergens.value = l.allergens || ""; renderAllergenChips();

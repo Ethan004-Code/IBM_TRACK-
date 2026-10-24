@@ -49,7 +49,7 @@ export const PublishListingBody = zod.object({
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(publishListingBodyOneItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().int().min(1).max(publishListingBodyOneWantedQuantityMax).optional(),
+  "wanted_quantity": zod.number().int().min(1).max(publishListingBodyOneWantedQuantityMax).nullish().describe('Legacy field, ignored for exchanges. Swaps exchange both full listings without a required return quantity.'),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(publishListingBodyOneWantedUnitDefault),
   "location": zod.string().min(1).max(publishListingBodyOneLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
@@ -127,7 +127,7 @@ export const ReviewListingBody = zod.object({
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(reviewListingBodyItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().int().min(1).max(reviewListingBodyWantedQuantityMax).optional(),
+  "wanted_quantity": zod.number().int().min(1).max(reviewListingBodyWantedQuantityMax).nullish().describe('Legacy field, ignored for exchanges. Swaps exchange both full listings without a required return quantity.'),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(reviewListingBodyWantedUnitDefault),
   "location": zod.string().min(1).max(reviewListingBodyLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
@@ -180,7 +180,7 @@ export const UpdateReviewedListingBody = zod.union([zod.object({
   "date_type": zod.union([zod.literal('best_by'),zod.literal('use_by'),zod.literal('sell_by'),zod.literal('expiration'),zod.literal(null)]).nullish()
 })).min(1).max(updateReviewedListingBodyOneOneItemDetailsMax),
   "wanted_food": zod.string().optional(),
-  "wanted_quantity": zod.number().int().min(1).max(updateReviewedListingBodyOneOneWantedQuantityMax).optional(),
+  "wanted_quantity": zod.number().int().min(1).max(updateReviewedListingBodyOneOneWantedQuantityMax).nullish().describe('Legacy field, ignored for exchanges. Swaps exchange both full listings without a required return quantity.'),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(updateReviewedListingBodyOneOneWantedUnitDefault),
   "location": zod.string().min(1).max(updateReviewedListingBodyOneOneLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
