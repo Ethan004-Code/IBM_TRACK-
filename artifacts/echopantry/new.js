@@ -1,9 +1,8 @@
 /* RePlate: app-style frontend.
    Uses the same Flask API, fields and rules as app.js. Only the screens are new. */
 import { createDonationMap } from "./new-donation-map.js";
-import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX } from "./limits.js";
+import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, SPOT_MAX, SPOT_PLACEHOLDER, SPOT_NOTE, spotError } from "./limits.js";
 const API = "/api";
-const ZONES = ["Library steps", "Community Center", "Neighborhood Park", "Student Union", "Campus Green", "Dining Commons"];
 const DATE_TYPES = { best_by: "Best by", use_by: "Use by", sell_by: "Sell by", expiration: "Expiration" };
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const REVIEW_TTL_MS = 15 * 60000, REVIEW_TIMEOUT_MS = 90000, MAX_PHOTO = 5 * 1024 * 1024, MAX_ITEMS = 5;
@@ -106,7 +105,7 @@ const S = {
   listings: [], loaded: false, loadError: "",
   myListings: [], myOffers: [], myRequests: [], notifications: [], activityLoaded: false,
   impact: null, impactError: "", impactGen: 0,
-  filter: { mode: "", zone: "", hours: 0 },
+  filter: { mode: "", hours: 0 },
   actSeg: "sharing",
   share: { step: "compose", text: "", busy: false, error: "", fromBob: false, notes: [] },
   draft: emptyDraft(), dtTouched: false, editingId: null,
@@ -161,8 +160,8 @@ function userIsTyping() { const a = document.activeElement; return a && $("#view
 /* ---------------- Discover ---------------- */
 const HOURS = [{ v: 0, l: "Any time" }, { v: 24, l: "Next 24 hours" }, { v: 72, l: "Next 3 days" }, { v: 168, l: "This week" }];
 function visibleListings() {
-  const { mode, zone, hours } = S.filter, cutoff = hours ? Date.now() + hours * 3600000 : Infinity;
-  return S.listings.filter(x => x.status === "open" && (!mode || x.mode === mode) && (!zone || x.location === zone) && new Date(x.deadline).getTime() <= cutoff)
+  const { mode, hours } = S.filter, cutoff = hours ? Date.now() + hours * 3600000 : Infinity;
+  return S.listings.filter(x => x.status === "open" && (!mode || x.mode === mode) && new Date(x.deadline).getTime() <= cutoff)
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 }
 function listingCard(l) {
@@ -180,7 +179,7 @@ function viewDiscover() {
   if (!S.loaded && !S.loadError) body = `<div class="cards grid"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
   else if (S.loadError && !S.listings.length) body = `<div class="empty"><div class="empty-icon">${icon("alert", 26)}</div><h2>Couldn't load food nearby</h2><p>${esc(S.loadError)}</p><button type="button" class="btn btn-secondary btn-sm" data-action="reload">Try again</button></div>`;
   else if (!list.length) body = S.listings.some(x => x.status === "open")
-    ? `<div class="empty"><div class="empty-icon">${icon("leaf", 26)}</div><h2>Nothing matches these filters</h2><p>Try another area or time.</p><button type="button" class="btn btn-secondary btn-sm" data-action="clear-filters">Show everything</button></div>`
+    ? `<div class="empty"><div class="empty-icon">${icon("leaf", 26)}</div><h2>Nothing matches these filters</h2><p>Try another food type or time.</p><button type="button" class="btn btn-secondary btn-sm" data-action="clear-filters">Show everything</button></div>`
     : `<div class="empty"><div class="empty-icon">${icon("leaf", 26)}</div><h2>Nothing listed nearby yet</h2><p>Be the first to share something. It takes about a minute.</p><button type="button" class="btn btn-primary btn-sm" data-action="go-share">Share food</button></div>`;
   else body = `<div class="cards grid">${list.map(listingCard).join("")}</div>`;
   const hoursLabel = HOURS.find(h => h.v === f.hours)?.l || "Any time";
@@ -190,7 +189,7 @@ function viewDiscover() {
       <div><h1 class="large-title">Food near you</h1><p class="vh-sub">Groceries your neighbors are passing along</p></div>
       <div class="discover-filters">
         <div class="seg" role="group" aria-label="Show">${[["", "All"], ["exchange", "Swaps"], ["giveaway", "Free"]].map(([v, l]) => `<button type="button" data-action="filter-mode" data-value="${v}" aria-pressed="${f.mode === v}">${l}</button>`).join("")}</div>
-        <div class="pill-row"><button type="button" class="pill" data-action="open-zone">${icon("pin", 16)}<span>${esc(f.zone || "All areas")}</span>${icon("chevD", 12)}</button>
+        <div class="pill-row">
         <button type="button" class="pill" data-action="open-hours">${icon("clock", 16)}<span>${esc(hoursLabel)}</span>${icon("chevD", 12)}</button>
         <button type="button" class="pill pill-donate" data-action="open-donation-locations">${icon("pin", 16)}<span>Donation locations</span></button></div>
       </div></header>
@@ -241,7 +240,9 @@ function conditionOptions(sel) {
     .map(([v, l]) => `<option value="${v}"${v === sel ? " selected" : ""}>${l}</option>`).join("");
 }
 const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
-function zoneOptions(sel, placeholder = "Choose a public spot") { return `<option value="">${placeholder}</option>` + ZONES.map(z => `<option${z === sel ? " selected" : ""}>${esc(z)}</option>`).join(""); }
+function spotField(id, value = "", attrs = "") {
+  return `<div class="pickup-field"><div class="row"><label for="${id}">Pickup spot</label><input id="${id}" type="text" maxlength="${SPOT_MAX}" placeholder="${SPOT_PLACEHOLDER}" value="${esc(value)}" aria-describedby="${id}-note ${id}-count" data-spot-counter="${id}-count" ${attrs}></div><div class="pickup-help"><span id="${id}-note">${SPOT_NOTE}</span><span id="${id}-count" role="status">${String(value).length}/${SPOT_MAX}</span></div></div>`;
+}
 function viewReview() {
   const d = S.draft, sh = S.share, pl = printedLimits(), lim = pickupLimits();
   const items = d.items.map((it, i) => `<div class="item-ed">
@@ -277,7 +278,7 @@ function viewReview() {
     ${how}
     <p class="section-label">When and where</p>
     <div class="group">
-      <div class="row"><label for="f-zone">Pickup spot</label><select id="f-zone" data-bind="draft.location">${zoneOptions(d.location)}</select></div>
+      ${spotField("f-zone", d.location, 'data-bind="draft.location"')}
       <div class="row"><label for="f-day">Day</label><input id="f-day" type="date" min="${lim.minDay}" max="${lim.maxDay}" data-bind="draft.day" value="${esc(d.day)}"></div>
       <div class="row"><label for="f-from">From</label><input id="f-from" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.from" value="${esc(d.from)}"></div>
       <div class="row"><label for="f-until">Until</label><input id="f-until" type="time" min="${d.day === lim.minDay ? lim.minInput.slice(11) : "00:00"}" max="${d.day === lim.maxDay ? lim.maxInput.slice(11) : "23:59"}" data-bind="draft.until" value="${esc(d.until)}"></div>
@@ -316,7 +317,7 @@ function readDraft() {
   });
   const wf = String(d.wanted_food).trim(), wq = parseQty(d.wanted_quantity);
   if (mode === "exchange") { if (!wf) miss.push("Say what food you'd like in return."); const qe = qtyError(d.wanted_quantity, "amount for the food you'd like"); if (qe) miss.push(qe); }
-  if (!ZONES.includes(d.location)) miss.push("Choose a public pickup spot.");
+  const locationError = spotError(d.location); if (locationError) miss.push(locationError);
   const ps = d.day && d.from ? toUtcIso(`${d.day}T${d.from}`) : null, pe = d.day && d.until ? toUtcIso(`${d.day}T${d.until}`) : null, dl = toUtcIso(d.deadline);
   if (!d.day) { miss.push("Pick a pickup day."); if (!dl) miss.push('Set "Available until".'); }
   else windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true }, now).forEach(e => miss.push(e));
@@ -374,10 +375,9 @@ async function doInterpret() {
     const d = emptyDraft();
     const items = (draft.item_details || []).slice(0, MAX_ITEMS);
     d.items = items.length ? items.map(fromApiItem) : [emptyItem()];
-    d.location = ZONES.includes(draft.location) ? draft.location : "";
+    d.location = draft.location || "";
     const notes = [...(draft.ambiguities || [])];
-    if (draft.location && !ZONES.includes(draft.location)) notes.push(`"${draft.location}" isn't one of the public pickup spots. Choose one below.`);
-    else if (draft.location) notes.push(`"${draft.location}" was matched to a pickup spot. Make sure it's right.`);
+    if (draft.location) notes.push(`Check the pickup spot "${draft.location}". Use a public place, not your home address.`);
     if (draft.availability) notes.push(`You said you're free "${draft.availability}". Set the exact day and times below.`);
     if (draft.deadline_text) notes.push(`You said "${draft.deadline_text}". Set "Available until" to the exact date and time.`);
     S.draft = d; S.dtTouched = false; S.share.fromBob = true; S.share.notes = notes; S.share.step = "review"; S.publishError = "";
@@ -438,7 +438,7 @@ function editListing(l, over = {}) {
   d.items = items.length ? items : [emptyItem()];
   d.mode = over.mode || l.mode || "exchange";
   d.wanted_food = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; d.wanted_quantity = l.wanted_quantity ?? "";
-  d.location = ZONES.includes(l.location) ? l.location : "";
+  d.location = l.location || "";
   d.day = dayPart(l.pickup_start); d.from = timePart(l.pickup_start); d.until = timePart(l.pickup_end); d.deadline = toLocalInput(l.deadline);
   d.allergens = l.allergens || "";
   S.draft = d; S.dtTouched = true; S.editingId = l.id; S.publishError = "";
@@ -507,8 +507,10 @@ function giveawayBlock(r) {
   else if (s === "completion_pending" && iDone) note = `You confirmed the handoff. Waiting for ${esc(otherName)}.`;
   if (s === "completed") actions = `<div class="subtle-row"><span>Giveaway completed. Thanks!</span><button type="button" class="btn btn-secondary btn-sm" data-action="rate-gr" data-id="${esc(r.id)}" data-to="${esc(owner ? r.requester_id : r.owner_id)}">Rate ${owner ? "recipient" : "giver"}</button></div>`;
   if (s === "declined" || s === "cancelled") note = `This request was ${s}.`;
+  const at = r.pickup_start ? new Date(r.pickup_start).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : "the requested time";
+  const pickupLine = `${owner ? otherName : "You"} ${s === "completed" ? "picked up" : "will pick up"} ${at}`;
   const line = owner ? `<b>${esc(otherName)}</b> asked for this giveaway` : `You asked for <b>${esc(itemsText(r.item_details))}</b>`;
-  return `<div class="handoff"><div class="who"><div class="face" aria-hidden="true">${initial(otherName)}</div><div><p>${line}</p><p class="meta">${esc(r.location)} · ${esc(windowText(r.pickup_start, r.pickup_end))}</p></div></div>${note ? `<p class="foot" style="margin:0">${note}</p>` : ""}${actions}</div>`;
+  return `<div class="handoff"><div class="who"><div class="face" aria-hidden="true">${initial(otherName)}</div><div><p>${line}</p><p class="meta">${esc(pickupLine)}</p><p class="meta">${esc(r.location)} · ${esc(windowText(r.pickup_start, r.pickup_end))}</p></div></div>${note ? `<p class="foot" style="margin:0">${note}</p>` : ""}${actions}</div>`;
 }
 const ACTIVE_OFFER = ["pending", "awaiting_second_acceptance", "confirmed", "completion_pending"];
 const ACTIVE_GR = ["pending", "approved", "completion_pending"];
@@ -555,7 +557,7 @@ function viewActivity() {
   const asked = giveaways.filter(r => r.owner_id !== S.user.id);
   const standalone = S.myRequests.filter(r => !giveaways.includes(r));
   const ups = S.notifications.slice(0, 3);
-  const updates = ups.length ? `<p class="section-label">Updates${unreadCount() ? ` · ${unreadCount()} new` : ""}</p><div class="updates">${ups.map(n => `<div class="update"><span class="dot${n.read ? " read" : ""}" aria-hidden="true"></span><div><small>${esc(String(n.kind || "update").replaceAll("_", " "))}</small>${esc(n.message)}</div></div>`).join("")}</div>` : "";
+  const updates = ups.length ? `<p class="section-label">Updates${unreadCount() ? ` · ${unreadCount()} new` : ""}</p><div class="updates">${ups.map(n => `<div class="update"><span class="dot${n.read ? " read" : ""}" aria-hidden="true"></span><div><small>${esc(String(n.kind || "update").replaceAll("_", " "))}</small>${esc(n.message)}${n.location ? `<p class="meta">${esc(n.location)}${n.pickup_start ? ` · ${esc(windowText(n.pickup_start, n.pickup_end))}` : ""}</p>` : ""}</div></div>`).join("")}</div>` : "";
   const seg = `<div class="seg" role="group" aria-label="Show"><button type="button" data-action="act-seg" data-value="sharing" aria-pressed="${S.actSeg === "sharing"}">Sharing</button><button type="button" data-action="act-seg" data-value="getting" aria-pressed="${S.actSeg === "getting"}">Getting</button></div>`;
   let body;
   if (S.actSeg === "sharing") {
@@ -636,10 +638,6 @@ function openAccount() {
     <button type="button" class="btn btn-secondary btn-block" data-action="sign-out">Sign out</button>
     <button type="button" class="link danger" data-action="delete-account" style="align-self:center">Delete account</button>`);
 }
-function openZone() {
-  const opts = [["", "All areas"], ...ZONES.map(z => [z, z])];
-  openSheet("Pickup area", `<div class="group">${opts.map(([v, l]) => `<button type="button" class="row row-btn" data-action="set-zone" data-value="${esc(v)}" aria-pressed="${S.filter.zone === v}"><span class="grow">${esc(l)}</span>${S.filter.zone === v ? `<span style="color:var(--forest)">${icon("check", 20)}</span>` : ""}</button>`).join("")}</div><p class="foot" style="margin:0 4px">Pickups happen at public spots.</p>`);
-}
 function openHours() {
   openSheet("Ending within", `<div class="group">${HOURS.map(h => `<button type="button" class="row row-btn" data-action="set-hours" data-value="${h.v}" aria-pressed="${S.filter.hours === h.v}"><span class="grow">${h.l}</span>${S.filter.hours === h.v ? `<span style="color:var(--forest)">${icon("check", 20)}</span>` : ""}</button>`).join("")}</div>`);
 }
@@ -676,7 +674,7 @@ function giveawayBody(l, err = "", busy = false, vals = {}) {
   const gb = giveawayBounds(l);
   return `<p style="margin:0;font-size:15px;line-height:1.45">${esc(l.name || "The owner")} is free <b>${esc(windowText(l.pickup_start, l.pickup_end))}</b> at <b>${esc(l.location)}</b>. Pick a time inside that window.</p>
     <form id="giveaway-form" data-id="${esc(l.id)}" class="sheet-body" novalidate><div class="group">
-      <div class="row"><label for="g-zone">Pickup spot</label><select id="g-zone" name="location">${zoneOptions(vals.location ?? (ZONES.includes(l.location) ? l.location : ""), "Choose")}</select></div>
+      ${spotField("g-zone", l.location || "", 'name="location" readonly')}
       <div class="row"><label for="g-from">From</label><input id="g-from" name="pickup_start" type="datetime-local" min="${gb.min}" max="${gb.max}" value="${esc(vals.pickup_start ?? gb.min)}"></div>
       <div class="row"><label for="g-until">Until</label><input id="g-until" name="pickup_end" type="datetime-local" min="${gb.min}" max="${gb.max}" value="${esc(vals.pickup_end ?? gb.max)}"></div>
     </div>${sheetError(err)}
@@ -690,7 +688,7 @@ function openRequestForm() {
       <div class="row"><label for="rq-item">Food</label><input id="rq-item" name="item" placeholder="${ITEM_PLACEHOLDER}" autocomplete="off"></div>
       <div class="row"><label for="rq-qty">Quantity</label><input id="rq-qty" name="quantity" ${QTY_ATTRS} placeholder="1"></div></div>
     <div class="group">
-      <div class="row"><label for="rq-zone">Pickup spot</label><select id="rq-zone" name="location">${zoneOptions("", "Choose")}</select></div>
+      ${spotField("rq-zone", "", 'name="location"')}
       <div class="row"><label for="rq-from">Pickup from</label><input id="rq-from" name="pickup_start" type="datetime-local" ${rng}></div>
       <div class="row"><label for="rq-until">Pickup until</label><input id="rq-until" name="pickup_end" type="datetime-local" ${rng}></div>
       <div class="row"><label for="rq-deadline">Needed by</label><input id="rq-deadline" name="deadline" type="datetime-local" ${rng}></div></div>
@@ -925,9 +923,8 @@ const actions = {
   "reload": () => { S.loaded = false; S.loadError = ""; render(); load(); },
   "reload-impact": () => { S.impactError = ""; S.impact = null; render(); refreshImpact(); },
   "filter-mode": el => { S.filter.mode = el.dataset.value; render(); },
-  "clear-filters": () => { S.filter = { mode: "", zone: "", hours: 0 }; render(); },
-  "open-zone": openZone, "open-hours": openHours, "open-rules": openRules,
-  "set-zone": el => { S.filter.zone = el.dataset.value; closeSheet(); render(); },
+  "clear-filters": () => { S.filter = { mode: "", hours: 0 }; render(); },
+  "open-hours": openHours, "open-rules": openRules,
   "set-hours": el => { S.filter.hours = Number(el.dataset.value) || 0; closeSheet(); render(); },
   "open-listing": el => openListing(el.dataset.id),
   "ask-giveaway": el => { const l = findListing(el.dataset.id); requireAuth(() => openSheet("Ask for this giveaway", giveawayBody(l), listingTitle(l))); },
@@ -1028,7 +1025,13 @@ function onBind(e) {
   invalidateApproval(true);
 }
 document.addEventListener("input", onBind);
-document.addEventListener("change", e => { if (e.target.type === "checkbox" || e.target.tagName === "SELECT" || e.target.dataset?.rerender || /^(date|time|datetime-local|number)$/.test(e.target.type)) onBind(e); });
+function updateSpotCounter(e) {
+  const id = e.target.dataset?.spotCounter;
+  if (id) { const counter = document.getElementById(id); if (counter) counter.textContent = `${e.target.value.length}/${SPOT_MAX}`; }
+}
+document.addEventListener("input", updateSpotCounter);
+document.addEventListener("change", updateSpotCounter);
+document.addEventListener("change", e => { if (e.target.type === "checkbox" || e.target.tagName === "SELECT" || e.target.dataset?.rerender || e.target.dataset?.spotCounter || /^(date|time|datetime-local|number)$/.test(e.target.type)) onBind(e); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
 
 document.addEventListener("submit", async e => {
@@ -1056,6 +1059,7 @@ document.addEventListener("submit", async e => {
     e.preventDefault();
     const l = findListing(f.dataset.id), vals = { location: f.location.value, pickup_start: f.pickup_start.value, pickup_end: f.pickup_end.value };
     const s = toUtcIso(vals.pickup_start), en = toUtcIso(vals.pickup_end);
+    if (spotError(vals.location)) return setSheetBody(giveawayBody(l, spotError(vals.location), false, vals));
     if (!vals.location || !s || !en) return setSheetBody(giveawayBody(l, "Choose a pickup spot and an exact time window.", false, vals));
     const ge = windowErrors({ start: s, end: en, bound: { start: l.pickup_start, end: l.pickup_end, deadline: l.deadline } });
     if (ge.length) return setSheetBody(giveawayBody(l, ge.join(" "), false, vals));
@@ -1066,7 +1070,7 @@ document.addEventListener("submit", async e => {
   if (f.id === "request-form") {
     e.preventDefault();
     const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value), errEl = $("#rq-err");
-    const err = !f.item.value.trim() ? "Add the food you're looking for." : qtyError(f.quantity.value)
+    const err = !f.item.value.trim() ? "Add the food you're looking for." : qtyError(f.quantity.value) || spotError(f.location.value)
       || (!f.location.value || !ps || !pe || !dl ? "Choose a pickup spot, a pickup window and a needed-by time."
       : windowErrors({ start: ps, end: pe, deadline: dl, needDeadline: true, labels: { deadline: "Needed by" } }).join(" "));
     if (err) { errEl.innerHTML = sheetError(err); return; }

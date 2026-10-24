@@ -73,7 +73,7 @@ def validate_draft(value, original):
             raise ValueError("Invalid date type")
     for field in ("location", "availability", "deadline_text"):
         field_value = value[field]
-        if field_value is not None and (not isinstance(field_value, str) or len(field_value) > 160 or norm(field_value) not in norm(original)):
+        if field_value is not None and (not isinstance(field_value, str) or len(field_value) > (100 if field == "location" else 160) or norm(field_value) not in norm(original)):
             raise ValueError("Ungrounded pickup field")
     if not isinstance(value["ambiguities"], list) or len(value["ambiguities"]) > 15 or any(not isinstance(a, str) or len(a) > 240 for a in value["ambiguities"]):
         raise ValueError("Invalid ambiguities")
@@ -92,6 +92,7 @@ def interpret(text, tz):
         '"printed_date":"YYYY-MM-DD" or null,"date_type":"best_by" or "use_by" or "sell_by" or "expiration" or null}],'
         '"location":string or null,"availability":string or null,"deadline_text":string or null,"ambiguities":[string]}. '
         "At most five items. Names, location, availability, deadline_text must be literal spans in USER_DATA. "
+        "Location is free-text for a public pickup spot, at most 100 characters; do not replace it with a preset zone. "
         "Unit only one of each,g,kg,oz,lb,bag,can,box,bottle,package. Missing quantities/units stay null, never assume 1. "
         "Do not infer a bag's weight. Package condition must be explicit; produce does not need unopened. "
         "Never infer food safety. Do not resolve ambiguous dates or AM/PM: keep raw phrases, add questions to ambiguities. "

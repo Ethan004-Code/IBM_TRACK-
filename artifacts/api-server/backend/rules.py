@@ -9,8 +9,6 @@ from zoneinfo import ZoneInfo
 from flask import g, jsonify, request
 from werkzeug.exceptions import BadRequest, Forbidden, NotFound, Conflict
 
-ZONES = {"Library steps", "Community Center", "Neighborhood Park",
-         "Student Union", "Campus Green", "Dining Commons"}
 UNITS = {"each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"}
 DATE_TYPES = {"best_by", "use_by", "sell_by", "expiration"}
 
@@ -71,10 +69,10 @@ def norm(value):
     return re.sub(r"\s+", " ", value.strip().casefold())
 
 
-def zone(value):
-    if value not in ZONES:
-        raise BadRequest("Choose a listed public pickup zone, not a home address.")
-    return value
+def pickup_spot(value):
+    if isinstance(value, str) and len(value) > 100:
+        raise BadRequest("Pickup spot must be 100 characters or fewer.")
+    return text(value, "a public pickup spot", limit=100)
 
 
 def window(data):
@@ -456,7 +454,10 @@ def install_rules(app, legacy):
         if listing["user_id"] == g.user["id"] or blocked(listing["user_id"], g.user["id"]):
             raise Forbidden("You cannot request this giveaway.")
         data = request.get_json(silent=True) or {}
-        recipient = dict(location=zone(data.get("location")), pickup_start=data.get("pickup_start"),
+        location = pickup_spot(listing.get("location"))
+        if data.get("location") is not None and norm(pickup_spot(data["location"])) != norm(location):
+            raise BadRequest("Use this listing's pickup spot. Choose your pickup time, not a different location.")
+        recipient = dict(location=location, pickup_start=data.get("pickup_start"),
                          pickup_end=data.get("pickup_end"), deadline=listing["deadline"])
         start, end = instant(recipient["pickup_start"]), instant(recipient["pickup_end"])
         # Do not silently clip an invalid request to an overlapping window.
@@ -472,7 +473,7 @@ def install_rules(app, legacy):
                    item_details=listing["item_details"], location=listing["location"],
                    pickup_start=pickup[0], pickup_end=pickup[1], created_at=now().isoformat())
         persist("food_requests", row)
-        notify(listing["user_id"], "giveaway_request", "A neighbor requested your whole giveaway. Review pickup details.", row["id"])
+        notify(listing["user_id"], "giveaway_request", f"{g.user['name']} requested your giveaway.", row["id"])
         return jsonify(request=row), 201
 
     @replace("decide_giveaway")
@@ -499,7 +500,7 @@ def install_rules(app, legacy):
         start, end, due = window(data)
         row = dict(id=str(uuid4()), user_id=g.user["id"], name=g.user["name"],
                    items=[name], quantity=amount, unit=unit, quantities={name: amount},
-                   location=zone(data.get("location")), pickup_start=start, pickup_end=end,
+                   location=pickup_spot(data.get("location")), pickup_start=start, pickup_end=end,
                    deadline=due, status="open", created_at=now().isoformat())
         persist("food_requests", row)
         for listing in g.store["listings"]:
@@ -508,6 +509,36 @@ def install_rules(app, legacy):
                 fulfills(listing, dict(wanted_food=name, wanted_quantity=amount, wanted_unit=unit))):
                 notify(g.user["id"], "request_match", "A compatible quantity and pickup window is available.", listing["id"])
         return jsonify(request=row), 201
+
+    @replace("get_notifications")
+    def get_notifications():
+        rows = []
+        for original in g.store["notifications"]:
+            if original.get("user_id") != g.user["id"]:
+                continue
+            row = dict(original)
+            handoff = next((r for r in g.store["food_requests"]
+                            if r["id"] == row.get("entity_id") and r.get("listing_id")
+                            and g.user["id"] in {r.get("owner_id"), r.get("requester_id")}), None)
+            if handoff:
+                row.update(location=handoff.get("location"), pickup_start=handoff.get("pickup_start"),
+                           pickup_end=handoff.get("pickup_end"), requester_name=handoff.get("requester_name"))
+                if row.get("kind") == "giveaway_request":
+                    row["message"] = f"{handoff.get('requester_name') or 'The requester'} requested your giveaway."
+            else:
+                trade = next((o for o in g.store["trade_offers"] if o["id"] == row.get("entity_id")
+                              and g.user["id"] in {p["user_id"] for p in o.get("participants", [])}), None)
+                if trade:
+                    row.update(location=trade.get("location"), pickup_start=trade.get("pickup_start"),
+                               pickup_end=trade.get("pickup_end"))
+                elif row.get("kind") == "request_match":
+                    listing = next((l for l in g.store["listings"] if l["id"] == row.get("entity_id")
+                                    and (l["user_id"] == g.user["id"] or available(l))), None)
+                    if listing:
+                        row.update(location=listing.get("location"), pickup_start=listing.get("pickup_start"),
+                                   pickup_end=listing.get("pickup_end"))
+            rows.append(row)
+        return jsonify(notifications=rows)
 
     @replace("get_impact")
     def get_impact():

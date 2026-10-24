@@ -24,6 +24,11 @@ export interface ListingDraft {
        */
     wanted_quantity?: number;
     wanted_unit?: ListingDraftWantedUnit;
+    /**
+       * Free-text public pickup spot; existing location text is retained.
+       * @minLength 1
+       * @maxLength 100
+       */
     location: string;
     /** Timezone required; now through one calendar year ahead, strictly before pickup_end. */
     pickup_start: Date;

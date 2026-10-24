@@ -25,7 +25,8 @@ function ui(fetchImpl = async () => { throw Error("Unexpected network request");
     .replace(/^import .*;$/gm, "").split("\ninitialize();")[0];
   vm.runInContext(source + `
     globalThis.ui = { S, viewImpact, refreshImpact, conditionOptions,
-      viewCompose, viewReview, onBind, readDraft, signedOut };
+      viewCompose, viewReview, onBind, readDraft, signedOut,
+      spotField, viewDiscover, giveawayBody, giveawayBlock, viewActivity, listingCard };
   `, context);
   return { ...context.ui, nodes };
 }
@@ -103,4 +104,56 @@ test("change-only Clear updates state and does not refill the cleared deadline",
   change("draft.day", "", "date");
   assert.equal(app.S.draft.day, "");
   assert.match(app.readDraft().miss.join(" "), /pickup day/);
+});
+
+test("pickup fields are free text with exact note, placeholder, limit and counter", () => {
+  const app = ui();
+  const html = app.spotField("test-spot", "Library steps");
+  assert.match(html, /type="text"/);
+  assert.match(html, /maxlength="100"/);
+  assert.match(html, /13\/100/);
+  assert.ok(html.includes(limits.SPOT_PLACEHOLDER));
+  assert.ok(html.includes(limits.SPOT_NOTE));
+  assert.doesNotMatch(html, /select|option/);
+  app.S.draft.location = "Main library north entrance";
+  assert.ok(app.viewReview().includes('value="Main library north entrance"'));
+  assert.doesNotMatch(app.readDraft().miss.join(" "), /pickup spot/);
+  app.S.draft.location = "x".repeat(101);
+  assert.match(app.readDraft().miss.join(" "), /100 characters/);
+});
+
+test("Discover removes areas filter but retains free-text location cards", () => {
+  const app = ui();
+  app.S.loaded = true;
+  app.S.listings = [{
+    id: "one", mode: "giveaway", status: "open", location: "Main library front steps",
+    item_details: [{ name: "onions", quantity: 3, unit: "each" }],
+    deadline: new Date(Date.now() + 86400000).toISOString(),
+  }];
+  const html = app.viewDiscover();
+  assert.doesNotMatch(html, /All areas|open-zone|set-zone/);
+  assert.match(html, /Main library front steps/);
+});
+
+test("request sheet uses listing spot and Activity uses chosen request time", () => {
+  const app = ui();
+  const now = Date.now();
+  const listing = { id: "one", name: "Owner", location: "North door by the library",
+    pickup_start: new Date(now + 3600000).toISOString(),
+    pickup_end: new Date(now + 4 * 3600000).toISOString(),
+    deadline: new Date(now + 5 * 3600000).toISOString() };
+  const form = app.giveawayBody(listing);
+  assert.match(form, /North door by the library/);
+  assert.match(form, /name="location" readonly/);
+  assert.doesNotMatch(form, /<select id="g-zone"/);
+  app.S.user = { id: "owner" };
+  const row = { id: "r", owner_id: "owner", requester_id: "other", requester_name: "Hyun",
+    status: "approved", location: listing.location, item_details: [],
+    pickup_start: new Date(now + 2 * 3600000).toISOString(),
+    pickup_end: new Date(now + 3 * 3600000).toISOString() };
+  const expected = new Date(row.pickup_start).toLocaleString(undefined,
+    { weekday: "short", hour: "numeric", minute: "2-digit" });
+  assert.ok(app.giveawayBlock(row).includes(`Hyun will pick up ${expected}`));
+  app.S.user = { id: "other" };
+  assert.ok(app.giveawayBlock(row).includes(`You will pick up ${expected}`));
 });

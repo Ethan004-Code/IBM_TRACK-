@@ -26,6 +26,8 @@ export const publishListingBodyOneItemDetailsMax = 5;
 export const publishListingBodyOneWantedQuantityMax = 99;
 
 export const publishListingBodyOneWantedUnitDefault = `each`;
+export const publishListingBodyOneLocationMax = 100;
+
 export const publishListingBodyOneAllergensMax = 200;
 
 
@@ -45,7 +47,7 @@ export const PublishListingBody = zod.object({
   "wanted_food": zod.string().optional(),
   "wanted_quantity": zod.number().int().min(1).max(publishListingBodyOneWantedQuantityMax).optional(),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(publishListingBodyOneWantedUnitDefault),
-  "location": zod.string(),
+  "location": zod.string().min(1).max(publishListingBodyOneLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
   "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
   "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),
@@ -96,6 +98,8 @@ export const reviewListingBodyItemDetailsMax = 5;
 export const reviewListingBodyWantedQuantityMax = 99;
 
 export const reviewListingBodyWantedUnitDefault = `each`;
+export const reviewListingBodyLocationMax = 100;
+
 export const reviewListingBodyAllergensMax = 200;
 
 
@@ -115,7 +119,7 @@ export const ReviewListingBody = zod.object({
   "wanted_food": zod.string().optional(),
   "wanted_quantity": zod.number().int().min(1).max(reviewListingBodyWantedQuantityMax).optional(),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(reviewListingBodyWantedUnitDefault),
-  "location": zod.string(),
+  "location": zod.string().min(1).max(reviewListingBodyLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
   "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
   "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),
@@ -141,6 +145,8 @@ export const updateReviewedListingBodyOneOneItemDetailsMax = 5;
 export const updateReviewedListingBodyOneOneWantedQuantityMax = 99;
 
 export const updateReviewedListingBodyOneOneWantedUnitDefault = `each`;
+export const updateReviewedListingBodyOneOneLocationMax = 100;
+
 export const updateReviewedListingBodyOneOneAllergensMax = 200;
 
 
@@ -160,7 +166,7 @@ export const UpdateReviewedListingBody = zod.union([zod.object({
   "wanted_food": zod.string().optional(),
   "wanted_quantity": zod.number().int().min(1).max(updateReviewedListingBodyOneOneWantedQuantityMax).optional(),
   "wanted_unit": zod.enum(['each', 'g', 'kg', 'oz', 'lb', 'bag', 'can', 'box', 'bottle', 'package']).default(updateReviewedListingBodyOneOneWantedUnitDefault),
-  "location": zod.string(),
+  "location": zod.string().min(1).max(updateReviewedListingBodyOneOneLocationMax).describe('Free-text public pickup spot; existing location text is retained.'),
   "pickup_start": zod.coerce.date().describe('Timezone required; now through one calendar year ahead, strictly before pickup_end.'),
   "pickup_end": zod.coerce.date().describe('After pickup_start, no later than deadline or one calendar year ahead.'),
   "deadline": zod.coerce.date().describe('Available until; no earlier than pickup_end and no later than one calendar year ahead.'),

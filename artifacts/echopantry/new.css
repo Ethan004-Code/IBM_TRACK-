@@ -114,12 +114,12 @@ a { color: var(--forest); }
 .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 /* Listing cards */
-.cards { display: grid; gap: 10px; }
-.lcard { width: 100%; display: flex; gap: 12px; padding: 10px; border: 0; border-radius: 18px; background: var(--surface); color: var(--ink); text-align: left; box-shadow: var(--shadow); }
+.cards { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 10px; }
+.lcard { width: 100%; min-width: 0; display: flex; gap: 12px; padding: 10px; border: 0; border-radius: 18px; background: var(--surface); color: var(--ink); text-align: left; box-shadow: var(--shadow); }
 .lcard .ph { width: 84px; height: 84px; border-radius: 14px; }
 .lcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
 .lcard-title { font-family: var(--font-display); font-size: 17px; line-height: 1.3; font-weight: 700; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lcard-meta { font-size: 14px; line-height: 1.35; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lcard-meta { font-size: 14px; line-height: 1.35; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
 .lcard .badges { margin-top: 4px; }
 .skel { height: 104px; border-radius: 18px; background: var(--surface); position: relative; overflow: hidden; }
 .skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--sage), transparent); transform: translateX(-100%); animation: shimmer 1.3s infinite; }
@@ -399,3 +399,9 @@ details.more .dn-cards .dest { background: var(--surface); }
 .dn-notice { padding: 12px 14px; border-radius: 14px; background: var(--warm-tint); color: var(--warm-text); font-size: 14px; line-height: 1.45; }
 .dn-notice p { margin: 0; }
 .dn-notice p + p { margin-top: 6px; }
+.pickup-help { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 0 16px 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.pickup-help span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pickup-field input { min-width: 0; }
+.pickup-field .row { align-items: stretch; flex-direction: column; gap: 4px; }
+.pickup-field .row input { width: 100%; max-width: none; text-align: left; }
+.lcard-meta, .acard p, .who .meta, .kv dd, .update { overflow-wrap: anywhere; }

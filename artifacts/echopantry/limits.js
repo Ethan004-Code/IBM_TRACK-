@@ -5,6 +5,14 @@ const pad = n => String(n).padStart(2, "0");
 export const QTY_MIN = 1, QTY_MAX = 99;
 export const ITEM_PLACEHOLDER = "e.g. onions, bags of rice, cans of beans";
 export const CANON_UNIT = "each";
+export const SPOT_MAX = 100;
+export const SPOT_PLACEHOLDER = "e.g. Front steps of the main library";
+export const SPOT_NOTE = "Meet at a public spot. Never share your home address.";
+export function spotError(value) {
+  if (!String(value ?? "").trim()) return "Enter a public pickup spot.";
+  if (String(value).length > SPOT_MAX) return "Pickup spot must be 100 characters or fewer.";
+  return "";
+}
 
 const PLURAL = { bag: "bags", can: "cans", box: "boxes", bottle: "bottles", package: "packages", jar: "jars", carton: "cartons" };
 

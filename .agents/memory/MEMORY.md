@@ -4,3 +4,4 @@
 - [Donation map reuse](donation-map-reuse.md) — reuse the existing donation-map implementation when exposing it through the new interface.
 - [Count-only listings](count-only-listings.md) — units belong in names; preserve historical meanings and keep Best by warnings consistent with discovery.
 - [Personal impact](personal-impact.md) — private totals include both sides of completed handoffs but only the current user's external drop-off reports.
+- [Free-text pickup spots](free-text-pickups.md) — preserve location text; requests use the listing's spot and show the requester’s actual time and name.

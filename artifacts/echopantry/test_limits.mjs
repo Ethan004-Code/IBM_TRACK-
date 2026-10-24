@@ -3,10 +3,17 @@ import assert from "node:assert/strict";
 import {
   foldName, qtyError, parseQty, pickupLimits, printedLimits, printedCheck,
   windowErrors, dateInput,
+  spotError,
 } from "./limits.js";
 
 const now = new Date(2026, 9, 24, 12, 30, 30).getTime();
 const hour = 3600000;
+
+test("public pickup spot accepts free text and limits raw input to 100 characters", () => {
+  assert.equal(spotError("Front steps of the main library"), "");
+  assert.equal(spotError("x".repeat(100)), "");
+  for (const value of ["", " ", "x".repeat(101)]) assert.ok(spotError(value));
+});
 
 test("quantities are whole numbers 1 through 99", () => {
   for (const v of ["1", "3", "99"]) assert.equal(qtyError(v), "");

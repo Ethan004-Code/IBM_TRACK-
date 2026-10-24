@@ -1,9 +1,8 @@
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, toLocalInput as localStr } from "./limits.js";
+import { foldName, parseQty, qtyError, pickupLimits, printedLimits, windowErrors, printedCheck, ITEM_PLACEHOLDER, CANON_UNIT, QTY_MIN, QTY_MAX, toLocalInput as localStr, SPOT_MAX, SPOT_PLACEHOLDER, SPOT_NOTE, spotError } from "./limits.js";
 
 const API = "/api";
-const ZONES = ["Library steps","Community Center","Neighborhood Park","Student Union","Campus Green","Dining Commons"];
 const QTY_ATTRS = `type="number" min="${QTY_MIN}" max="${QTY_MAX}" step="1" inputmode="numeric" pattern="[0-9]*"`;
 function setQtyAttrs(el) { Object.assign(el, {type:"number", min:String(QTY_MIN), max:String(QTY_MAX), step:"1", inputMode:"numeric"}); el.setAttribute("pattern", "[0-9]*"); }
 function setRange(el, lo, hi) { if (el) { el.min = lo; el.max = hi; } }
@@ -36,8 +35,28 @@ function status(s) { return `<span class="status ${esc(s)}">${esc(String(s || ""
 function isMine(listingId) { return myListings.some(l => l.id === listingId); }
 function setNotice(el, msg, ok) { el.className = ok ? "notice success" : "notice"; el.textContent = msg; el.hidden = false; }
 
-document.querySelectorAll(".zone-select").forEach(sel => { sel.innerHTML = `<option value="" disabled selected>Choose a public zone</option>` + ZONES.map(z => `<option>${z}</option>`).join(""); });
-$("#location-filter").innerHTML += ZONES.map(z => `<option>${z}</option>`).join("");
+document.querySelectorAll("select[name=location]").forEach(select => {
+  const label = select.closest("label"), input = document.createElement("input");
+  input.name = "location"; input.type = "text"; input.maxLength = SPOT_MAX;
+  input.placeholder = SPOT_PLACEHOLDER; input.required = true;
+  input.readOnly = !!select.closest("#giveaway-form");
+  select.replaceWith(input);
+  label.firstChild.textContent = "Pickup spot";
+  const note = document.createElement("small"), count = document.createElement("small");
+  note.textContent = SPOT_NOTE;
+  count.dataset.spotCount = ""; count.setAttribute("role", "status");
+  label.append(note, count);
+  input.addEventListener("input", () => { count.textContent = `${input.value.length}/${SPOT_MAX}`; });
+  input.addEventListener("change", () => { count.textContent = `${input.value.length}/${SPOT_MAX}`; });
+  input.form.addEventListener("reset", () => setTimeout(updateSpotCounters, 0));
+  count.textContent = `0/${SPOT_MAX}`;
+});
+$("#location-filter")?.closest("label").remove();
+function updateSpotCounters() {
+  document.querySelectorAll("[data-spot-count]").forEach(counter => {
+    counter.textContent = `${counter.closest("label").querySelector("input").value.length}/${SPOT_MAX}`;
+  });
+}
 
 /* Health */
 async function checkHealth() {
@@ -50,9 +69,9 @@ async function checkHealth() {
 /* Listings */
 function art(items) { const all = items.map(i => i.name || i).join(" ").toLowerCase(); const pkg = items.some(i => i.category === "shelf_stable"); return pkg ? `<span class="dot pkg"></span><span class="dot c"></span>` : /apple|tomato|pepper/.test(all) ? `<span class="dot b"></span><span class="dot"></span><span class="dot c"></span>` : `<span class="dot"></span><span class="dot c"></span>`; }
 function renderListings() {
-  const mode = $("#mode-filter").value, loc = $("#location-filter").value, hours = Number($("#deadline-filter").value) || 0;
+  const mode = $("#mode-filter").value, hours = Number($("#deadline-filter").value) || 0;
   const cutoff = hours ? Date.now() + hours * 3600000 : Infinity;
-  const visible = listings.filter(x => x.status === "open" && (!mode || x.mode === mode) && (!loc || x.location === loc) && new Date(x.deadline).getTime() <= cutoff);
+  const visible = listings.filter(x => x.status === "open" && (!mode || x.mode === mode) && new Date(x.deadline).getTime() <= cutoff);
   if (!visible.length) { listingsEl.innerHTML = `<div class="empty-listings">${loaded ? "No open listings match these filters. Be the first to share." : "Loading listings..."}</div>`; return; }
   listingsEl.innerHTML = visible.map(l => {
     const items = itemsOf(l), give = l.mode === "giveaway", owner = sessionUser && sessionUser.id === l.user_id;
@@ -69,7 +88,7 @@ listingsEl.addEventListener("click", async e => {
   if (b.dataset.report) { const reason = prompt("Why are you reporting this user?"); if (!reason) return; try { await post(`/users/${encodeURIComponent(b.dataset.report)}/report`, {reason}); showToast("Report received."); } catch (er) { showToast(er.message); } }
   if (b.dataset.block) { if (!confirm("Block this user?")) return; try { await post(`/users/${encodeURIComponent(b.dataset.block)}/block`); showToast("User blocked."); await load(); } catch (er) { showToast(er.message); } }
 });
-document.querySelectorAll("#mode-filter,#location-filter,#deadline-filter").forEach(f => f.addEventListener("change", renderListings));
+document.querySelectorAll("#mode-filter,#deadline-filter").forEach(f => f.addEventListener("change", renderListings));
 
 async function load() {
   try { const d = await api("/listings"); listings = d.listings || []; loaded = true; renderListings(); }
@@ -149,7 +168,9 @@ function giveawayCard(r) {
   else if (s === "completion_pending" && iDone) actions = `<span class="muted">You confirmed. Waiting for the other person.</span>`;
   if (s === "completed") actions = `<button class="mini-btn" data-rate-gr="${esc(r.id)}" data-to="${esc(owner ? r.requester_id : r.owner_id)}">Rate ${owner ? "recipient" : "giver"}</button>`;
   if (s === "declined" && owner && r.listing_id) actions = `<button class="mini-btn" data-fallback="${esc(r.listing_id)}">Next steps for my listing</button>`;
-  return `<div class="record"><strong>Giveaway ${owner ? "you are giving" : "you requested"}</strong>${status(s)}<p>${itemList(r.item_details)}</p><p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><div class="row-actions">${actions}</div></div>`;
+  const chosen = r.pickup_start ? new Date(r.pickup_start).toLocaleString(undefined, {weekday:"short", hour:"numeric", minute:"2-digit"}) : "the requested time";
+  const person = owner ? r.requester_name || "The requester" : "You";
+  return `<div class="record"><strong>Giveaway ${owner ? "you are giving" : "you requested"}</strong>${status(s)}<p>${itemList(r.item_details)}</p><p>${esc(person)} ${s === "completed" ? "picked up" : "will pick up"} ${esc(chosen)}</p><p>${esc(r.location)} &middot; ${esc(windowText(r.pickup_start, r.pickup_end))}</p><div class="row-actions">${actions}</div></div>`;
 }
 async function act(fn, okMsg) { try { const r = await fn(); if (okMsg) showToast(okMsg); return r; } catch (e) { showToast(e.message); if (e.status === 409) await load(); } finally { await refreshActivity(); refreshImpact(); } }
 async function rate(body) { const stars = Number(prompt("Rate from 1 to 5 stars")); if (!Number.isInteger(stars) || stars < 1 || stars > 5) return; try { await post("/ratings", {...body, stars}); showToast("Rating saved."); } catch (e) { showToast(e.message); } }
@@ -278,7 +299,8 @@ let giveawayTarget = null;
 function openGiveawayDialog(id) {
   const l = listings.find(x => x.id === id); giveawayTarget = id; const f = $("#giveaway-form"); f.reset(); $("#gd-notice").hidden = true;
   $("#gd-summary").innerHTML = l ? `${itemList(itemsOf(l))}. Owner is available at ${esc(l.location)}, ${esc(windowText(l.pickup_start, l.pickup_end))}. Choose a window inside it.` : "";
-  if (l && ZONES.includes(l.location)) f.location.value = l.location;
+  if (l) f.location.value = l.location || "";
+  updateSpotCounters();
   if (l) { const lim = pickupLimits(), lo = Math.max(lim.min, new Date(l.pickup_start).getTime() || lim.min), hi = Math.min(lim.max, ...[l.pickup_end, l.deadline].map(v => new Date(v).getTime()).filter(Number.isFinite));
     [f.pickup_start, f.pickup_end].forEach(el => setRange(el, localStr(new Date(Math.ceil(lo / 60000) * 60000)), localStr(new Date(hi)))); }
   $("#giveaway-dialog").showModal();
@@ -319,9 +341,9 @@ $("#interpret-button").onclick = async () => {
     ["pickup_start","pickup_end","deadline"].forEach(k => form[k].value = ""); form.fresh.checked = false; form.storage_confirmed.checked = false;
     const items = (draft.item_details || []).slice(0, 5); $("#item-rows").innerHTML = "";
     $("#listing-type").value = items.length > 1 ? "bundle" : "single"; (items.length ? items : [{}]).forEach(itemRow);
-    form.location.value = ZONES.includes(draft.location) ? draft.location : "";
+    form.location.value = draft.location || ""; updateSpotCounters();
     const notes = [...(draft.ambiguities || [])];
-    if (draft.location && !ZONES.includes(draft.location)) notes.push(`Location "${draft.location}" is not a public zone; choose one.`);
+    if (draft.location) notes.push(`Check pickup spot "${draft.location}". ${SPOT_NOTE}`);
     if (draft.availability) notes.push(`You said availability: "${draft.availability}". Set exact pickup times.`);
     if (draft.deadline_text) notes.push(`You said deadline: "${draft.deadline_text}". Set the exact date and time.`);
     st.innerHTML = `Draft ready. Review every field, fill blanks, and choose exact dates yourself. Nothing has been saved.${notes.length ? `<div class="ambiguities"><strong>Please resolve:</strong><ul>${notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul></div>` : ""}`;
@@ -361,7 +383,7 @@ function readDraft() {
   items.forEach(it => delete it.rawQty);
   const wf = form.wanted_food.value.trim(), wq = parseQty(form.wanted_quantity.value);
   if (mode === "exchange") { if (!wf) miss.push("Food you want in return."); const qe = qtyError(form.wanted_quantity.value, "quantity for the food you want"); if (qe) miss.push(qe); }
-  if (!ZONES.includes(form.location.value)) miss.push("Public pickup zone.");
+  const locationError = spotError(form.location.value); if (locationError) miss.push(locationError);
   const ps = toUtcIso(form.pickup_start.value), pe = toUtcIso(form.pickup_end.value), dl = toUtcIso(form.deadline.value);
   windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true}, now).forEach(x => miss.push(x));
   if (!TZ) miss.push("Time zone could not be detected.");
@@ -492,7 +514,7 @@ function editListing(l, over = {}) {
   (items.length ? items : [{}]).forEach(itemRow);
   $("#listing-mode").value = over.mode || l.mode || "exchange"; setMode();
   form.wanted_food.value = l.wanted_food ? foldName(l.wanted_food, l.wanted_unit, l.wanted_quantity) : ""; form.wanted_quantity.value = l.wanted_quantity ?? "";
-  form.location.value = ZONES.includes(l.location) ? l.location : "";
+  form.location.value = l.location || ""; updateSpotCounters();
   form.pickup_start.value = toLocalInput(l.pickup_start); form.pickup_end.value = toLocalInput(l.pickup_end); form.deadline.value = toLocalInput(l.deadline);
   form.allergens.value = l.allergens || "";
   photo = l.photo_id ? {id:l.photo_id, owned:false} : null; photoBusy = false; editingId = l.id;
@@ -510,7 +532,8 @@ $("#request-form").addEventListener("submit", async e => {
   const q = parseQty(f.quantity.value), ps = toUtcIso(f.pickup_start.value), pe = toUtcIso(f.pickup_end.value), dl = toUtcIso(f.deadline.value);
   if (!f.item.value.trim()) return setNotice(m, "Enter the food you need.");
   const qe = qtyError(f.quantity.value, "quantity"); if (qe) return setNotice(m, qe);
-  if (!f.location.value || !ps || !pe || !dl) return setNotice(m, "Choose a zone, pickup window and needed-by time.");
+  if (spotError(f.location.value)) return setNotice(m, spotError(f.location.value));
+  if (!ps || !pe || !dl) return setNotice(m, "Choose a pickup window and needed-by time.");
   const we = windowErrors({start:ps, end:pe, deadline:dl, needDeadline:true, labels:{deadline:"Needed by"}}); if (we.length) return setNotice(m, we.join(" "));
   try { await post("/requests", {items:[f.item.value.trim()], quantity:q, unit:CANON_UNIT, location:f.location.value, pickup_start:ps, pickup_end:pe, deadline:dl, timezone:TZ}); setNotice(m, "Request posted.", true); f.reset(); refreshActivity(); }
   catch (er) { setNotice(m, er.message); }
@@ -519,7 +542,7 @@ $("#request-form").addEventListener("submit", async e => {
 /* Notifications */
 async function refreshNotifications() {
   try { const {notifications = []} = await api("/notifications"); $("#notification-count").textContent = `${notifications.filter(n => !n.read).length} NEW`;
-    $("#notifications-list").innerHTML = notifications.length ? notifications.slice(0, 8).map(n => `<div class="notification-item"><span class="notification-dot" aria-hidden="true"></span><div><strong>${esc(String(n.kind || "").replaceAll("_", " "))}</strong><p>${esc(n.message)}</p>${n.kind === "trade_declined" && isMine(n.entity_id) ? `<button class="mini-btn" data-fallback="${esc(n.entity_id)}">Next steps</button>` : ""}</div></div>`).join("") + `<p class="muted">Act on offers and requests in My handoffs.</p>` : `<p class="muted">No notifications yet.</p>`;
+    $("#notifications-list").innerHTML = notifications.length ? notifications.slice(0, 8).map(n => `<div class="notification-item"><span class="notification-dot" aria-hidden="true"></span><div><strong>${esc(String(n.kind || "").replaceAll("_", " "))}</strong><p>${esc(n.message)}</p>${n.location ? `<p>${esc(n.location)}${n.pickup_start ? ` &middot; ${esc(windowText(n.pickup_start, n.pickup_end))}` : ""}</p>` : ""}${n.kind === "trade_declined" && isMine(n.entity_id) ? `<button class="mini-btn" data-fallback="${esc(n.entity_id)}">Next steps</button>` : ""}</div></div>`).join("") + `<p class="muted">Act on offers and requests in My handoffs.</p>` : `<p class="muted">No notifications yet.</p>`;
   } catch {}
 }
 

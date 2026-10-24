@@ -20,6 +20,7 @@ export declare const publishListingBodyOneItemDetailsItemUnitDefault = "each";
 export declare const publishListingBodyOneItemDetailsMax = 5;
 export declare const publishListingBodyOneWantedQuantityMax = 99;
 export declare const publishListingBodyOneWantedUnitDefault = "each";
+export declare const publishListingBodyOneLocationMax = 100;
 export declare const publishListingBodyOneAllergensMax = 200;
 export declare const PublishListingBody: zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
@@ -152,6 +153,7 @@ export declare const reviewListingBodyItemDetailsItemUnitDefault = "each";
 export declare const reviewListingBodyItemDetailsMax = 5;
 export declare const reviewListingBodyWantedQuantityMax = 99;
 export declare const reviewListingBodyWantedUnitDefault = "each";
+export declare const reviewListingBodyLocationMax = 100;
 export declare const reviewListingBodyAllergensMax = 200;
 export declare const ReviewListingBody: zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
@@ -255,6 +257,7 @@ export declare const updateReviewedListingBodyOneOneItemDetailsItemUnitDefault =
 export declare const updateReviewedListingBodyOneOneItemDetailsMax = 5;
 export declare const updateReviewedListingBodyOneOneWantedQuantityMax = 99;
 export declare const updateReviewedListingBodyOneOneWantedUnitDefault = "each";
+export declare const updateReviewedListingBodyOneOneLocationMax = 100;
 export declare const updateReviewedListingBodyOneOneAllergensMax = 200;
 export declare const UpdateReviewedListingBody: zod.ZodUnion<[zod.ZodIntersection<zod.ZodObject<{
     mode: zod.ZodEnum<["exchange", "giveaway"]>;
