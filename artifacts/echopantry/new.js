@@ -1,5 +1,6 @@
 /* RePlate: app-style frontend.
    Uses the same Flask API, fields and rules as app.js. Only the screens are new. */
+import { createDonationMap } from "./new-donation-map.js";
 const API = "/api";
 const ZONES = ["Library steps", "Community Center", "Neighborhood Park", "Student Union", "Campus Green", "Dining Commons"];
 const UNITS = ["each", "g", "kg", "oz", "lb", "bag", "can", "box", "bottle", "package"];
@@ -607,13 +608,15 @@ function viewImpact() {
 /* ---------------- Sheets ---------------- */
 let lastFocus = null;
 function openSheet(title, body, sub = "") {
+  destroyDMap();
+  routeSeq++; fbSeq++; S.fallback = null;
   lastFocus = document.activeElement;
   $("#sheet").innerHTML = `<div class="grab" aria-hidden="true"></div><div class="sheet-head"><div><h2 id="sheet-title">${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ""}</div><button type="button" class="close-btn" data-action="close-sheet" aria-label="Close">${icon("close", 15)}</button></div><div class="sheet-body" id="sheet-body">${body}</div>`;
   $("#sheet-root").hidden = false; document.body.style.overflow = "hidden";
   setTimeout(() => { const f = $("#sheet").querySelector("input:not([type=checkbox]),textarea,select") || $("#sheet .close-btn"); f?.focus({ preventScroll: true }); }, 40);
 }
 function setSheetBody(html) { const b = $("#sheet-body"); if (b) b.innerHTML = html; }
-function closeSheet() { $("#sheet-root").hidden = true; document.body.style.overflow = ""; S.fallback = null; if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true }); }
+function closeSheet() { destroyDMap(); routeSeq++; fbSeq++; $("#sheet-root").hidden = true; document.body.style.overflow = ""; S.fallback = null; if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true }); }
 function sheetOpen() { return !$("#sheet-root").hidden; }
 function sheetError(msg) { return msg ? `<div class="alert" role="alert">${icon("alert", 20)}<p>${esc(msg)}</p></div>` : ""; }
 
@@ -710,8 +713,14 @@ function rateBody() {
 async function openFallback(id) {
   const l = findListing(id);
   openSheet("Next steps", `<div class="skel" style="height:120px"></div><div class="skel" style="height:160px"></div>`, l ? `${listingTitle(l)} · nothing changes until you choose` : "");
-  try { const fb = await api(`/listings/${encodeURIComponent(id)}/fallback-options`); S.fallback = { id, fb, err: {} }; setSheetBody(fallbackBody()); }
-  catch (e) { setSheetBody(`${sheetError(e.message)}<button type="button" class="btn btn-secondary btn-block" data-action="open-fallback" data-id="${esc(id)}">Try again</button>`); }
+  const tok = ++fbSeq;
+  try {
+    const fb = await api(`/listings/${encodeURIComponent(id)}/fallback-options`);
+    if (tok !== fbSeq || !sheetOpen() || !S.user) return;
+    S.fallback = { id, fb, err: {}, sel: null, routingDown: !fb.routing_configured, route: { area: "", max: 30, status: "idle", rows: [], origin: null, error: "", seq: 0 } };
+    renderFallback();
+  }
+  catch (e) { if (tok !== fbSeq || !sheetOpen()) return; setSheetBody(`${sheetError(e.message)}<button type="button" class="btn btn-secondary btn-block" data-action="open-fallback" data-id="${esc(id)}">Try again</button>`); }
 }
 function fallbackBody() {
   const { id, fb, err } = S.fallback, matches = fb.matches || [], opts = fb.options || [];
@@ -724,10 +733,29 @@ function fallbackBody() {
       <button type="button" class="btn btn-primary btn-sm" data-action="propose" data-idx="${i}">Propose this swap</button></div>`).join("") : `<p class="foot" style="margin:0 4px">No compatible swap right now. New listings are checked as they come in.</p>`);
   if (fb.can_switch_to_giveaway) html += `<p class="section-label">Give it away instead</p><div class="dest" style="flex-direction:row;align-items:center;gap:12px"><p style="margin:0;flex:1;font-size:14.5px;line-height:1.4">More neighbors can ask for it. You'll review it and Bob checks the change first.</p><button type="button" class="btn btn-outline btn-sm" data-action="fb-giveaway" style="flex:none">Make it free</button></div>`;
   html += `<p class="section-label">Donate or compost</p><p class="foot" style="margin:0 4px">A researched list, not live acceptance. Confirm the current rules before you go. Nothing is donated automatically.</p>`;
-  html += opts.length ? opts.map(o => {
-    const compostLocked = o.type === "compost" && !inedible;
-    return `<div class="dest"><h4>${esc(o.name)}</h4><div class="badges"><span class="badge ${o.type === "compost" ? "b-pkg" : "b-ok"}">${o.type === "compost" ? "Compost" : "Donation"}</span></div>
-      <dl><dt>Where</dt><dd>${esc(o.location)}</dd><dt>Hours</dt><dd>${esc(String(o.hours || "Not published").replace(/^Published:\s*/i, ""))}</dd><dt>Accepts</dt><dd>${esc((o.accepted_categories || []).map(c => c.replaceAll("_", " ")).join(", ") || "See website")}</dd>${o.exclusions?.length ? `<dt>Not</dt><dd>${esc(o.exclusions.join(", "))}</dd>` : ""}</dl>
+  const donations = opts.filter(o => o.type !== "compost"), compost = opts.filter(o => o.type === "compost");
+  if (donations.length) html += `<section class="dn-area" aria-labelledby="dn-title"><h3 id="dn-title" class="sr-only">Verified donation spots by drive time</h3>${routeFormHtml()}<div id="dn-results" class="dn-results">${routeResultsHtml()}</div></section>`;
+  html += compost.map(o => destCard(o, inedible, err)).join("");
+  if (!opts.length) html += `<p class="foot" style="margin:0 4px">No verified donation spot is listed for this food or area.</p>`;
+  if (!inedible) html += `<details class="more"><summary>Is this food no longer edible?${icon("chevD", 16)}</summary>
+      <label class="check" for="inedible-check"><input type="checkbox" id="inedible-check"><span>This food is no longer edible. I understand this removes it from offers. A missed pickup alone doesn't mean food is spoiled.</span></label>
+      ${err.inedible ? sheetError(err.inedible) : ""}<button type="button" class="btn btn-danger btn-sm" data-action="confirm-inedible" style="margin-top:10px">Confirm it's not edible</button></details>`;
+  return html;
+}
+
+/* ---------------- Donation drive-time search + map ---------------- */
+let dMap = null, routeSeq = 0, fbSeq = 0;
+const hasPt = o => o && Number.isFinite(o.latitude) && Number.isFinite(o.longitude);
+function destroyDMap() { if (dMap) dMap.destroy(); dMap = null; }
+function destCard(o, inedible, err, pin = 0) {
+  const compostLocked = o.type === "compost" && !inedible, donation = o.type !== "compost";
+  const routed = Number.isFinite(o.drive_minutes);
+  const where = o.address || o.location;
+  return `<div class="dest${donation ? " dest-pickable" : ""}${donation && S.fallback?.sel === String(o.id) ? " selected" : ""}"${donation ? ` data-dest-card="${esc(o.id)}" tabindex="0" aria-label="${esc(o.name)}${routed ? `, ${esc(o.drive_minutes)} minutes by car` : ""}. Press Enter to show on map."` : ""}>
+      <div class="dest-top">${pin ? `<span class="dest-pin" aria-hidden="true">${pin}</span>` : ""}<h4>${esc(o.name)}</h4>${routed ? `<div class="dn-route"><strong>${esc(o.drive_minutes)} min</strong><span>${esc(o.drive_miles)} mi by car</span></div>` : ""}</div>
+      <div class="badges"><span class="badge ${o.type === "compost" ? "b-pkg" : "b-ok"}">${o.type === "compost" ? "Compost" : "Donation"}</span>${donation && o.item_rules_status ? `<span class="badge b-soft">${o.item_rules_status === "matched" ? "Verified item match" : "Confirm your item"}</span>` : ""}</div>
+      <dl><dt>Where</dt><dd>${esc(where)}</dd><dt>Hours</dt><dd>${esc(String(o.hours || "Not published").replace(/^Published:\s*/i, ""))}</dd><dt>Accepts</dt><dd>${esc((o.accepted_categories || []).map(c => String(c).replaceAll("_", " ")).join(", ") || "See website")}</dd>${o.exclusions?.length ? `<dt>Not</dt><dd>${esc(o.exclusions.join(", "))}</dd>` : ""}${o.checked_at ? `<dt>Checked</dt><dd>${esc(o.checked_at)}</dd>` : ""}</dl>
+      ${o.policy ? `<p class="foot" style="margin:0">${esc(o.policy)}</p>` : ""}
       ${o.notice ? `<p class="foot" style="margin:0">${esc(o.notice)}</p>` : ""}
       ${o.url ? `<a class="link" href="${esc(o.url)}" target="_blank" rel="noopener">Confirm current rules ${icon("ext", 14)}</a>` : ""}
       ${compostLocked ? `<p class="foot" style="margin:0">Compost is only for food that's no longer edible. Confirm that below first.</p>` : `
@@ -735,12 +763,99 @@ function fallbackBody() {
       <label class="check" for="dp-${esc(o.id)}"><input type="checkbox" id="dp-${esc(o.id)}" data-drop="${esc(o.id)}"><span>I actually dropped this food off here.</span></label>
       ${err[o.id] ? sheetError(err[o.id]) : ""}
       <button type="button" class="btn btn-secondary btn-sm" data-action="record-outcome" data-id="${esc(o.id)}" data-type="${esc(o.type)}">Record ${o.type === "compost" ? "compost" : "donation"} drop-off</button>`}</div>`;
-  }).join("") : `<p class="foot" style="margin:0 4px">No verified donation spot is listed for this food or area.</p>`;
-  if (!inedible) html += `<details class="more"><summary>Is this food no longer edible?${icon("chevD", 16)}</summary>
-      <label class="check" for="inedible-check"><input type="checkbox" id="inedible-check"><span>This food is no longer edible. I understand this removes it from offers. A missed pickup alone doesn't mean food is spoiled.</span></label>
-      ${err.inedible ? sheetError(err.inedible) : ""}<button type="button" class="btn btn-danger btn-sm" data-action="confirm-inedible" style="margin-top:10px">Confirm it's not edible</button></details>`;
-  return html;
 }
+function routeFormHtml() {
+  const { route: r, routingDown } = S.fallback;
+  return `<form id="route-form" class="route-form" novalidate>
+    <label class="mini route-area" for="route-area"><span>City or ZIP code</span><input id="route-area" name="area" type="text" maxlength="100" autocomplete="postal-code" placeholder="e.g. 95125 or Campbell" value="${esc(r.area)}"></label>
+    <label class="mini route-max" for="route-max"><span>Max drive</span><select id="route-max" name="max_drive_minutes">${[15, 30, 60].map(m => `<option value="${m}"${r.max === m ? " selected" : ""}>${m} min</option>`).join("")}</select></label>
+    <button type="submit" class="btn btn-primary btn-sm" id="route-go"${routingDown || r.status === "loading" ? " disabled" : ""}>${r.status === "loading" ? "Searching" : "Find drive times"}</button>
+  </form><p class="foot route-privacy">We only use the area you type. Your exact location is never requested.</p>`;
+}
+function routeRows() {
+  const f = S.fallback, r = f.route;
+  return r.status === "ok" ? r.rows : (f.fb.options || []).filter(o => o.type !== "compost");
+}
+function routeResultsHtml() {
+  const f = S.fallback, r = f.route, inedible = f.fb.inedible_confirmed === true || S.myListings.some(l => l.id === f.id && l.inedible_confirmed === true);
+  const directory = (f.fb.options || []).filter(o => o.type !== "compost");
+  let status, top = "";
+  if (f.routingDown) status = `<p class="route-status muted" role="status">${esc(r.status === "unavailable" && r.error ? r.error : "Live driving times aren't available right now.")} The verified spots below still have addresses, hours and official links.</p>`;
+  else if (r.status === "loading") status = `<p class="route-status" role="status" aria-live="polite">Finding live drive times from ${esc(r.area.trim())}...</p>`;
+  else if (r.status === "ok") status = `<p class="route-status ok" role="status" aria-live="polite">${r.rows.length} verified spot${r.rows.length === 1 ? "" : "s"} within ${esc(r.searchedMax)} min of ${esc(r.origin?.label || r.searchedArea)}, closest first. Times are live car estimates.</p>`;
+  else if (r.status === "empty") status = `<p class="route-status" role="status" aria-live="polite">Search finished for ${esc(r.origin?.label || r.searchedArea)}.</p>`;
+  else if (r.status === "error") { status = `<p class="route-status" role="status">Showing the full verified list without drive times.</p>`; top = `${sheetError(r.error)}${r.area.trim() ? `<button type="button" class="btn btn-secondary btn-sm route-retry" data-action="route-retry">Try the search again</button>` : ""}`; }
+  else status = `<p class="route-status muted" role="status">Enter a city or ZIP to sort these by live drive time.</p>`;
+  if (r.status === "loading") return `${status}<div class="dn-map-wrap"><div class="skel dn-map"></div></div><div class="skel" style="height:150px"></div><div class="skel" style="height:150px"></div>`;
+  if (r.status === "empty") return `${status}<div class="route-empty"><strong>No verified spot within ${esc(r.searchedMax)} minutes by car.</strong><p>Try a longer drive limit, another area, a swap, or giving it away. We won't suggest a drop-off that isn't verified.</p></div>
+    <details class="more"><summary>See the full verified list without drive times${icon("chevD", 16)}</summary><div class="dn-cards">${directory.map(o => destCard(o, inedible, f.err)).join("")}</div></details>`;
+  const rows = routeRows(), pins = new Map(); rows.filter(hasPt).forEach((o, i) => pins.set(String(o.id), i + 1));
+  const showMap = pins.size > 0 || (r.status === "ok" && hasPt(r.origin));
+  return `${status}${top}${showMap ? `<div class="dn-map-wrap"><div id="dn-map" class="dn-map" role="region" aria-label="Map of verified donation spots. Numbered pins match the cards below."></div><p id="dn-map-status" class="map-note">Map data &copy; OpenStreetMap contributors${r.status === "ok" ? " · Drive times by openrouteservice" : ""}. The map shows places, not acceptance.</p></div>` : ""}
+    <div class="dn-cards">${rows.map(o => destCard(o, inedible, f.err, pins.get(String(o.id)) || 0)).join("")}</div>`;
+}
+function mountDMap() {
+  destroyDMap();
+  const c = $("#dn-map"), f = S.fallback; if (!c || !f) return;
+  try {
+    dMap = createDonationMap(c, routeRows(), f.route.status === "ok" ? f.route.origin : null, {
+      onSelect: id => selectDest(id, "map"),
+      onTilesUnavailable: () => { const s = $("#dn-map-status"); if (s) s.textContent = "Map tiles are unavailable right now. The verified cards below still work."; }
+    });
+    if (dMap && f.sel) dMap.select(f.sel, false);
+  } catch { const s = $("#dn-map-status"); if (s) s.textContent = "The map couldn't load. The verified cards below still work."; }
+}
+function renderFallback() { destroyDMap(); setSheetBody(fallbackBody()); mountDMap(); }
+function renderRouteResults() {
+  const box = $("#dn-results"); if (!box || !S.fallback) return;
+  destroyDMap(); box.innerHTML = routeResultsHtml(); mountDMap();
+  const go = $("#route-go"), r = S.fallback.route;
+  if (go) { go.disabled = S.fallback.routingDown || r.status === "loading"; go.textContent = r.status === "loading" ? "Searching" : "Find drive times"; }
+}
+function selectDest(id, from) {
+  if (!S.fallback) return; id = String(id); S.fallback.sel = id;
+  let card = null;
+  document.querySelectorAll("#sheet [data-dest-card]").forEach(c => { const on = c.dataset.destCard === id; c.classList.toggle("selected", on); if (on) { c.setAttribute("aria-current", "true"); card = c; } else c.removeAttribute("aria-current"); });
+  dMap?.select(id, from !== "map");
+  if (from === "map" && card) card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function resetRoute() {
+  const f = S.fallback; if (!f) return; const r = f.route;
+  r.seq = 0; routeSeq++;
+  if (r.status === "idle" || r.status === "unavailable") return;
+  Object.assign(r, { status: "idle", rows: [], origin: null, error: "" }); f.sel = null; renderRouteResults();
+}
+async function runRouteSearch() {
+  const f = S.fallback; if (!f || f.routingDown) return; const r = f.route, area = r.area.trim(), max = r.max;
+  if (!area) { Object.assign(r, { status: "error", error: "Enter a city or ZIP code first.", rows: [], origin: null }); renderRouteResults(); $("#route-area")?.focus(); return; }
+  const seq = ++routeSeq; r.seq = seq;
+  Object.assign(r, { status: "loading", rows: [], origin: null, error: "" }); f.sel = null; renderRouteResults();
+  const stale = () => S.fallback !== f || r.seq !== seq || !S.user || !sheetOpen() || r.area.trim() !== area || r.max !== max;
+  try {
+    const res = await post(`/listings/${encodeURIComponent(f.id)}/donation-routes`, { area, max_drive_minutes: max });
+    if (stale()) return;
+    const rows = (res.destinations || []).filter(d => d && d.id != null && Number.isFinite(d.drive_minutes));
+    Object.assign(r, { rows, origin: res.origin || null, status: rows.length ? "ok" : "empty", searchedMax: res.max_drive_minutes ?? max, searchedArea: area });
+  } catch (e) {
+    if (stale()) return;
+    if (e.status === 503) { f.routingDown = true; Object.assign(r, { status: "unavailable", error: e.message }); }
+    else Object.assign(r, { status: "error", error: e.message });
+  }
+  renderRouteResults();
+}
+document.addEventListener("input", e => { if (e.target.id === "route-area" && S.fallback) { S.fallback.route.area = e.target.value; resetRoute(); } });
+document.addEventListener("change", e => {
+  if (e.target.id !== "route-max" || !S.fallback) return;
+  S.fallback.route.max = Number(e.target.value); resetRoute();
+  if (S.fallback.route.area.trim() && !S.fallback.routingDown) runRouteSearch();
+});
+document.addEventListener("click", e => {
+  const c = e.target.closest?.("#sheet [data-dest-card]");
+  if (c && !e.target.closest("a,button,input,label,summary,select")) selectDest(c.dataset.destCard, "card");
+});
+document.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("#sheet [data-dest-card]")) { e.preventDefault(); selectDest(e.target.dataset.destCard, "card"); }
+});
 
 /* ---------------- Data loading ---------------- */
 async function load(quiet = false) {
@@ -834,18 +949,19 @@ const actions = {
   "send-report": async el => { const reason = $("#report-reason").value.trim(); if (!reason) { $("#report-err").innerHTML = sheetError("Tell us what happened."); return; } el.disabled = true; try { await post(`/users/${encodeURIComponent(el.dataset.id)}/report`, { reason }); closeSheet(); toast("Report received. Thank you."); } catch (e) { el.disabled = false; $("#report-err").innerHTML = sheetError(e.message); } },
   "block-user": el => requireAuth(() => openConfirm({ title: "Block this user?", text: "Their listings won't be matched with yours.", confirm: "Block", danger: true, onConfirm: async () => { try { await post(`/users/${encodeURIComponent(el.dataset.id)}/block`); toast("User blocked."); await load(); } catch (e) { toast(e.message); } } })),
   "open-fallback": el => openFallback(el.dataset.id),
+  "route-retry": () => runRouteSearch(),
   "propose": async el => { const m = S.fallback.fb.matches[Number(el.dataset.idx)], id = S.fallback.id; el.disabled = true; const r = await act(() => post("/offers", { listing_id: id, match_id: m.listing?.id || m.match_id }), "Swap offer sent. You both need to accept."); if (r) closeSheet(); else openFallback(id); },
   "fb-giveaway": () => { const id = S.fallback.id, l = findListing(id); if (!l) return toast("Couldn't load this listing. Refresh and try again."); closeSheet(); editListing(l, { mode: "giveaway" }); },
   "confirm-inedible": async el => {
-    if (!$("#inedible-check").checked) { S.fallback.err.inedible = "Tick the box to confirm first."; return setSheetBody(fallbackBody()); }
+    if (!$("#inedible-check").checked) { S.fallback.err.inedible = "Tick the box to confirm first."; return renderFallback(); }
     el.disabled = true; const id = S.fallback.id;
     if (await act(() => api(`/listings/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ inedible_confirmed: true }) }), "Marked as not edible.")) { await load(true); openFallback(id); }
   },
   "record-outcome": async el => {
     const oid = el.dataset.id, compost = el.dataset.type === "compost", id = S.fallback.id;
     const fz = document.querySelector(`[data-feasible="${CSS.escape(oid)}"]`), cb = document.querySelector(`[data-drop="${CSS.escape(oid)}"]`);
-    if (!fz?.checked) { S.fallback.err[oid] = "Confirm the food is accepted there and you can get there."; return setSheetBody(fallbackBody()); }
-    if (!cb?.checked) { S.fallback.err[oid] = "Confirm you actually dropped it off."; return setSheetBody(fallbackBody()); }
+    if (!fz?.checked) { S.fallback.err[oid] = "Confirm the food is accepted there and you can get there."; return renderFallback(); }
+    if (!cb?.checked) { S.fallback.err[oid] = "Confirm you actually dropped it off."; return renderFallback(); }
     const body = { listing_id: id, destination_id: oid, action: compost ? "compost" : "donation", confirmed: true, destination_feasible_confirmed: true };
     if (!compost) body.no_glass_confirmed = true; else Object.assign(body, { inedible_confirmed: true, material: "fruit_vegetable_scraps" });
     el.disabled = true;
@@ -896,6 +1012,7 @@ document.addEventListener("submit", async e => {
       const next = S.pendingAfterAuth; S.pendingAfterAuth = null; if (next) next();
     } catch (er) { setSheetBody(authBody(mode, er.message)); }
   }
+  if (f.id === "route-form") { e.preventDefault(); if (S.fallback) { S.fallback.route.area = f.area.value; S.fallback.route.max = Number(f.max_drive_minutes.value); runRouteSearch(); } return; }
   if (f.id === "giveaway-form") {
     e.preventDefault();
     const l = findListing(f.dataset.id), vals = { location: f.location.value, pickup_start: f.pickup_start.value, pickup_end: f.pickup_end.value };
@@ -920,6 +1037,7 @@ document.addEventListener("submit", async e => {
 });
 
 function signedOut() {
+  routeSeq++; fbSeq++; destroyDMap(); if (S.fallback || sheetOpen()) { if (S.fallback) closeSheet(); S.fallback = null; }
   S.user = null; S.myListings = []; S.myOffers = []; S.myRequests = []; S.notifications = []; S.activityLoaded = false;
   if (S.editingId || (S.photo && !S.photo.guestDraft) || S.approval || S.reviewing) { resetEditor(false); S.share.step = "compose"; }
   renderAll();

@@ -2,7 +2,7 @@
 
 ## Required photo and Bob approval update
 
-- **39 isolated tests pass**, including required fields, missing/foreign/expired/reused/changed approval rejection, giveaway-switch protection, malformed/uncertain/rejected Bob output, successful review without automatic posting, photo decoding, metadata removal and private/deleted-photo access controls.
+- **41 isolated tests pass**, including required fields, missing/foreign/expired/reused/changed approval rejection, giveaway-switch protection, malformed/uncertain/rejected Bob output, successful review without automatic posting, photo decoding, metadata removal, private/deleted-photo access controls and route-search ownership/input protection.
 - The updated additive SQL passes its disposable PostgreSQL check, including reruns, atomic approval consumption with listing writes, private receipt permissions, duplicate receipt protection and existing reservation concurrency checks.
 - Private App Storage upload/download/delete was checked with temporary images; all temporary objects were removed.
 - Real Bob ACP image prompts inspected image contents, accepted a relevant three-onion photograph after deterministic server validation, and rejected an unrelated blue image during integration. The worker has no filesystem, terminal, MCP or other tool access. No production listing was created by these probes.
@@ -29,11 +29,20 @@
 
 ## Remaining verification limits
 
-- The live checks exercised the website's HTTP API, not browser clicks. A two-account signed-in browser walkthrough, browser cookie persistence, and field editing in the Bob form have not been independently verified. Server cookie flags were checked separately.
+- Earlier broad live checks exercised the HTTP API. The map-specific signed-in browser checks below verify one account's native login and reload persistence; a two-account handoff walkthrough and browser photo-review/publishing flow remain unverified.
 - Verification accounts were created with Supabase Admin and email confirmation enabled, so no verification emails were sent. Signup email delivery and the project's confirmation-link configuration were not tested.
 - Compost policy and unknown-destination rejection passed isolated rule tests; the live API pass covered external donation rather than a compost submission.
 - Directory facts are manually maintained, sourced to the interview's official URLs and labeled with the interview's check date. They are not live organizational acceptance or appointments.
 - Direct Postgres maintenance is still unavailable with the supplied IPv6-only endpoint. It is not needed for normal app operations. Future authorized schema changes can use the Supabase SQL Editor or a dashboard-supplied IPv4 Session pooler connection.
+
+## New RePlate fallback map
+
+- Production build and JavaScript syntax checks pass for the main page, alternate new page and legacy page.
+- Authenticated desktop and 402px mobile browser checks passed using a temporary private, withdrawn packaged-food listing. The initial directory map, numbered markers, matching card selection, keyboard selection, repeated close/reopen and live city-based driving estimates work without requesting precise device location.
+- Real San Jose searches returned three destinations within 30 and 60 minutes and two within 15 minutes. These are car estimates, not organization acceptance or opening-hours guarantees.
+- Browser-intercepted simulated provider failure retained the directory and retry control; simulated empty success showed a distinct empty state and expandable unranked directory. Neither simulated state is presented as a live provider response.
+- Nine focused frontend state checks passed, including late-response rejection after area edits, sheet replacement, sheet close and another sheet replacing a pending fallback fetch. These race checks used a Node VM, not browser timing.
+- The temporary auth account, listing, profile, notifications and local session file were removed. No listing was published and no donation or compost outcome was recorded.
 
 ## Pilot browser checks still recommended
 

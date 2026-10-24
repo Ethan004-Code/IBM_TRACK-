@@ -1,2 +1,3 @@
 - [External Supabase maintenance](supabase-maintenance.md) — use the dashboard's IPv4 Session pooler for schema work; direct IPv6 connectivity failed here.
 - [Bob image review](bob-image-review.md) — use real ACP image input; validate required fields deterministically before focused, tool-free photo review.
+- [Preview session testing](preview-session-testing.md) — use clean native sign-in; mixed manually injected and partitioned cookies can falsely suggest broken auth.
